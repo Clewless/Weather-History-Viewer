@@ -1,7 +1,10 @@
 import { h } from 'preact';
+
 import { render, fireEvent } from '@testing-library/preact';
+
 import '@testing-library/jest-dom';
 import * as api from '../api';
+
 import { LocationSearch } from './LocationSearch';
 
 // Mock the API
@@ -44,6 +47,9 @@ describe('LocationSearch', () => {
     const input = getByPlaceholderText('Search for a location...') as HTMLInputElement;
     fireEvent.input(input, { target: { value: 'NY' } });
 
+    // Wait for debounce to complete
+    await new Promise(resolve => setTimeout(resolve, 400));
+
     expect(mockSearchLocations).toHaveBeenCalledWith('NY');
   });
 
@@ -64,7 +70,7 @@ describe('LocationSearch', () => {
     fireEvent.input(input, { target: { value: 'New York' } });
 
     // Wait for suggestions to appear
-    await new Promise(process.nextTick);
+    await new Promise(resolve => setTimeout(resolve, 400));
 
     const suggestion = getByText('New York');
     fireEvent.click(suggestion);

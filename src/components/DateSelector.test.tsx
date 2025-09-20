@@ -1,5 +1,7 @@
 import { h } from 'preact';
+
 import { render, fireEvent } from '@testing-library/preact';
+
 import '@testing-library/jest-dom';
 import { DateSelector } from './DateSelector';
 

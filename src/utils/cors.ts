@@ -17,9 +17,10 @@ interface CorsConfig {
  * Determines CORS configuration based on environment
  * @param env - Current environment (development, production, etc.)
  * @param corsOrigins - Comma-separated list of allowed origins from environment variables
+ * @param frontendPort - Frontend port number for localhost origins
  * @returns CORS configuration object
  */
-export function getCorsConfig(env: string, corsOrigins: string): CorsConfig {
+export function getCorsConfig(env: string, corsOrigins: string, frontendPort: number = 3000): CorsConfig {
   // Parse origins from environment variable
   const origins = corsOrigins.split(',').map(origin => origin.trim()).filter(origin => origin.length > 0);
   
@@ -28,7 +29,7 @@ export function getCorsConfig(env: string, corsOrigins: string): CorsConfig {
     // If no origins specified, allow localhost origins
     if (origins.length === 0) {
       return {
-        origin: ['http://localhost:8080', 'http://127.0.0.1:8080'],
+        origin: [`http://localhost:${frontendPort}`, `http://127.0.0.1:${frontendPort}`],
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         credentials: false,
         maxAge: 86400
@@ -36,7 +37,7 @@ export function getCorsConfig(env: string, corsOrigins: string): CorsConfig {
     }
     
     // Add localhost origins to the list for development convenience
-    const devOrigins = [...origins, 'http://localhost:8080', 'http://127.0.0.1:8080'];
+    const devOrigins = [...origins, `http://localhost:${frontendPort}`, `http://127.0.0.1:${frontendPort}`];
     return {
       origin: devOrigins,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -87,9 +88,10 @@ export function getCorsConfig(env: string, corsOrigins: string): CorsConfig {
  * Creates a CORS middleware with environment-specific configuration
  * @param env - Current environment
  * @param corsOrigins - Comma-separated list of allowed origins
+ * @param frontendPort - Frontend port number for localhost origins
  * @returns CORS middleware
  */
-export function createCorsMiddleware(env: string, corsOrigins: string) {
-  const config = getCorsConfig(env, corsOrigins);
+export function createCorsMiddleware(env: string, corsOrigins: string, frontendPort: number = 3000) {
+  const config = getCorsConfig(env, corsOrigins, frontendPort);
   return cors(config);
 }

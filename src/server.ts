@@ -1,8 +1,9 @@
 import express from 'express';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
+import { config } from 'dotenv';
 import rateLimit from 'express-rate-limit';
-import validator from 'validator';
+import { escape } from 'validator';
+
 import { ValidationError, createErrorResponse } from './errors';
 import { getEnvVar, validateEnvVars } from './utils/env';
 import { createCorsMiddleware } from './utils/cors';
@@ -19,13 +20,12 @@ import {
   getHistoricalWeather,
   reverseGeocode,
   Location as GeoLocation,
-  WeatherLocation,
   DailyWeatherData,
   HourlyWeatherData
 } from './open-meteo';
 
 // Load environment variables from .env file
-dotenv.config();
+config();
 
 // Validate environment variables
 try {
@@ -47,8 +47,9 @@ app.use(helmet());
 
 // Get validated environment variables
 const port = parseInt(getEnvVar('PORT'));
+const frontendPort = parseInt(getEnvVar('FRONTEND_PORT'));
 const corsOrigins = getEnvVar('CORS_ORIGIN');
-const nodeEnv = process.env.NODE_ENV || 'development';
+const nodeEnv = getEnvVar('NODE_ENV');
 
 // Create cache managers for different API endpoints
 const searchCache = new ServerCacheManager<GeoLocation[]>(5 * 60 * 1000, 500, 5 * 60 * 1000); // 5 minutes TTL, max 500 items
@@ -56,7 +57,7 @@ const weatherCache = new ServerCacheManager<{ daily: DailyWeatherData; hourly: H
 const reverseGeocodeCache = new ServerCacheManager<GeoLocation>(10 * 60 * 1000, 300, 5 * 60 * 1000); // 10 minutes TTL, max 300 items
 
 // Create CORS middleware with environment-specific configuration
-const corsMiddleware = createCorsMiddleware(nodeEnv, corsOrigins);
+const corsMiddleware = createCorsMiddleware(nodeEnv, corsOrigins, frontendPort);
 app.use(corsMiddleware);
 
 // Rate limiting configuration
@@ -115,7 +116,7 @@ app.get('/api/search', async (req, res) => {
     }
 
     // Additional sanitization for security
-    const sanitizedQuery = validator.escape(query.trim());
+    const sanitizedQuery = escape(query.trim());
 
     const locations = await searchLocations(sanitizedQuery);
     
@@ -249,7 +250,7 @@ app.post('/api/cache-clear', (req, res) => {
 });
 
 // Centralized error handling middleware
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err.stack);
   const errorResponse = createErrorResponse(err, 500);
   res.status(500).json(errorResponse);

@@ -1,7 +1,10 @@
 import axios from 'axios';
-import axiosRetry from 'axios-retry';
-import { APIError, NetworkError, wrapError } from './errors';
+import axiosRetry, { exponentialDelay, isRetryableError } from 'axios-retry';
+import tzLookup from 'tz-lookup';
+
+import { APIError, wrapError } from './errors';
 import { validateDateRangeWithErrors, validateCoordinatesWithErrors, validateTimezoneWithErrors } from './utils/validation';
+import { getEnvVar } from './utils/env';
 
 /**
  * Represents a location found by the Open-Meteo Geocoding API.
@@ -25,6 +28,7 @@ export interface Location {
   admin1?: string;
   admin2?: string;
   admin3?: string;
+  isFallback?: boolean; // Optional flag to indicate fallback location
 }
 
 /**
@@ -94,10 +98,10 @@ const axiosInstance = axios.create({
 });
 axiosRetry(axiosInstance, {
   retries: 3, // Number of retry attempts
-  retryDelay: axiosRetry.exponentialDelay, // Exponential backoff
+  retryDelay: exponentialDelay, // Exponential backoff
   retryCondition: (error) => {
     // Retry on network errors, timeouts, or 5xx status codes
-    return axiosRetry.isRetryableError(error) ||
+    return isRetryableError(error) ||
            error.code === 'ECONNABORTED' ||
            (!!error.response?.status && error.response.status >= 500);
   },
@@ -116,13 +120,14 @@ export const searchLocations = async (query: string): Promise<Location[]> => {
   // Using an API key increases rate limits and is recommended for production use
   // Get a free key at https://open-meteo.com/en/docs
   const headers: Record<string, string> = {};
-  if (process.env.OPEN_METEO_API_KEY) {
-    headers['X-API-Key'] = process.env.OPEN_METEO_API_KEY;
+  const apiKey = getEnvVar('OPEN_METEO_API_KEY');
+  if (apiKey) {
+    headers['X-API-Key'] = apiKey;
   }
 
   try {
     const response = await axiosInstance.get(url.toString(), { headers });
-    const data = response.data;
+    const {data} = response;
 
     if (!data.results || !Array.isArray(data.results)) {
       throw new APIError('Invalid geocoding response: missing or invalid results array', response.status, data);
@@ -211,13 +216,14 @@ export const getHistoricalWeather = async (
     }
   });
   const headers: Record<string, string> = {};
-  if (process.env.OPEN_METEO_API_KEY) {
-    headers['X-API-Key'] = process.env.OPEN_METEO_API_KEY;
+  const apiKey = getEnvVar('OPEN_METEO_API_KEY');
+  if (apiKey) {
+    headers['X-API-Key'] = apiKey;
   }
 
   try {
     const response = await axiosInstance.get(url.toString(), { headers });
-    const data = response.data;
+    const {data} = response;
 
     if (!data.daily || !data.hourly) {
       throw new Error('Invalid weather response: missing daily or hourly data');
@@ -266,13 +272,14 @@ export const reverseGeocode = async (
   url.searchParams.append('latitude', latitude.toString());
   url.searchParams.append('longitude', longitude.toString());
   const headers: Record<string, string> = {};
-  if (process.env.OPEN_METEO_API_KEY) {
-    headers['X-API-Key'] = process.env.OPEN_METEO_API_KEY;
+  const apiKey = getEnvVar('OPEN_METEO_API_KEY');
+  if (apiKey) {
+    headers['X-API-Key'] = apiKey;
   }
 
   try {
     const response = await axiosInstance.get(url.toString(), { headers });
-    const data = response.data;
+    const {data} = response;
 
     // Check if we got a valid response
     if (data.error) {
@@ -290,10 +297,11 @@ export const reverseGeocode = async (
 
     return result;
   } catch (error) {
+    // Log the error for debugging purposes
+    console.error('Reverse geocoding failed:', error instanceof Error ? error.message : error);
+
     // If reverse geocoding fails, we'll create a fallback location
-    console.warn('Reverse geocoding failed, using UTC timezone as fallback. Weather times may be inaccurate.', wrapError(error, 'Reverse geocoding'));
-    
-    // Create a fallback location with the provided coordinates and UTC timezone
+    // Create a fallback location with detected timezone from coordinates
     const fallbackLocation: Location = {
       id: 0,
       name: `Location at ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
@@ -302,10 +310,15 @@ export const reverseGeocode = async (
       elevation: 0,
       feature_code: 'PPL',
       country_code: 'XX',
-      timezone: 'UTC',
-      country: 'Unknown'
+      timezone: tzLookup(latitude, longitude) || 'UTC',
+      country: 'Unknown',
+      // Add a flag to indicate this is a fallback location
+      isFallback: true as const
     };
-    
+
+    // Log when fallback is used
+    console.warn(`Using fallback location for coordinates: ${latitude}, ${longitude}`);
+
     return fallbackLocation;
   }
 };

@@ -13,23 +13,40 @@ interface EnvVarConfig {
 }
 
 const defaultEnvVars = {
-  PORT: {
+   PORT: {
+     required: false,
+     validator: (value: string) => {
+       const port = parseInt(value, 10);
+       return !isNaN(port) && port > 0 && port < 65536;
+     },
+     defaultValue: '3001',
+     description: 'Server port number (1-65535)'
+   },
+   FRONTEND_PORT: {
+     required: false,
+     validator: (value: string) => {
+       const port = parseInt(value, 10);
+       return !isNaN(port) && port > 0 && port < 65536;
+     },
+     defaultValue: '3000',
+     description: 'Frontend port number (1-65535)'
+   },
+   CORS_ORIGIN: {
+     required: false,
+     validator: (value: string) => {
+       // Simple URL validation - can be enhanced if needed
+       return value.length > 0 && (value.startsWith('http://') || value.startsWith('https://'));
+     },
+     defaultValue: 'http://localhost:3000',
+     description: 'Allowed CORS origins (comma-separated URLs)'
+   },
+  NODE_ENV: {
     required: false,
     validator: (value: string) => {
-      const port = parseInt(value, 10);
-      return !isNaN(port) && port > 0 && port < 65536;
+      return ['development', 'production', 'test'].includes(value);
     },
-    defaultValue: '3000',
-    description: 'Server port number (1-65535)'
-  },
-  CORS_ORIGIN: {
-    required: false,
-    validator: (value: string) => {
-      // Simple URL validation - can be enhanced if needed
-      return value.length > 0 && (value.startsWith('http://') || value.startsWith('https://'));
-    },
-    defaultValue: 'http://localhost:8080',
-    description: 'Allowed CORS origins (comma-separated URLs)'
+    defaultValue: 'development',
+    description: 'Node environment (development, production, test)'
   },
   OPEN_METEO_API_KEY: {
     required: false,
@@ -45,7 +62,7 @@ const defaultEnvVars = {
       // Simple URL validation - can be enhanced if needed
       return value.length > 0 && (value.startsWith('http://') || value.startsWith('https://'));
     },
-    defaultValue: 'http://localhost:3000/api',
+    defaultValue: 'http://localhost:3001/api',
     description: 'Base URL for API requests'
   }
 };

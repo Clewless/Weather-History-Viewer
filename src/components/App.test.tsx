@@ -1,8 +1,11 @@
 
-import { h } from 'preact'; // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Required for JSX factory
+import { h } from 'preact';
+  
 import { render, screen, fireEvent } from '@testing-library/preact';
-import App from './App';
+
 import { bffSearchLocations, bffGetWeather, bffReverseGeocode } from '../api';
+
+import App from './App';
 
 // Mock API calls
 jest.mock('../api', () => ({
@@ -26,7 +29,7 @@ describe('App', () => {
     (bffSearchLocations as jest.Mock).mockResolvedValue(mockLocations);
 
     render(<App />);
-    expect(await screen.findByText('New York')).toBeInTheDocument();
+    expect(await screen.findByText('New York, United States')).toBeInTheDocument();
   });
 
   it('should handle geolocation click', async () => {
@@ -35,7 +38,7 @@ describe('App', () => {
 
     render(<App />);
     fireEvent.click(screen.getByText('Use My Location'));
-    expect(await screen.findByText('Current Location')).toBeInTheDocument();
+    expect(await screen.findByText('Current Location:')).toBeInTheDocument();
   });
 
   it('should handle date changes', async () => {
@@ -45,7 +48,7 @@ describe('App', () => {
     (bffGetWeather as jest.Mock).mockResolvedValue(mockWeather);
 
     render(<App />);
-    const dateInput = screen.getByLabelText('Start Date');
+    const dateInput = screen.getByLabelText('Selected date');
     fireEvent.change(dateInput, { target: { value: '2023-01-01' } });
     expect(dateInput).toHaveValue('2023-01-01');
   });

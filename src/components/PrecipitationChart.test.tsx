@@ -1,5 +1,7 @@
 import { h } from 'preact';
+
 import { render } from '@testing-library/preact';
+
 import '@testing-library/jest-dom';
 import { PrecipitationChart } from './PrecipitationChart';
 
@@ -24,7 +26,20 @@ Object.defineProperty(HTMLCanvasElement.prototype, 'toDataURL', {
 });
 
 describe('PrecipitationChart', () => {
+  const mockLocation = {
+    id: 1,
+    name: 'New York',
+    latitude: 40.7128,
+    longitude: -74.0060,
+    elevation: 0,
+    feature_code: 'PPL',
+    country_code: 'US',
+    timezone: 'America/New_York',
+    country: 'United States'
+  };
+
   const mockWeatherData = {
+    location: mockLocation,
     daily: {
       time: [new Date('2023-06-15')],
       weathercode: [0],
@@ -116,6 +131,7 @@ describe('PrecipitationChart', () => {
       <PrecipitationChart
         weatherData={mockWeatherData}
         temperatureUnit="C"
+        location={mockWeatherData.location}
       />
     );
     const canvas = container.querySelector('canvas');
@@ -127,6 +143,7 @@ describe('PrecipitationChart', () => {
       <PrecipitationChart
         weatherData={mockWeatherData}
         temperatureUnit="F"
+        location={mockWeatherData.location}
       />
     );
     // Just checking that it renders without errors when using Fahrenheit

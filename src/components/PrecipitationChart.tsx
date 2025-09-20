@@ -1,17 +1,46 @@
-import { h } from 'preact'; // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Required for JSX factory
+import { h } from 'preact';
+
+import type { JSX } from 'preact/jsx-runtime';
 import { useEffect, useRef } from 'preact/hooks';
-import { DailyWeatherData, HourlyWeatherData } from '../open-meteo';
+
+
+import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
+import { DailyWeatherData, HourlyWeatherData, Location } from '../open-meteo';
 
 interface PrecipitationChartProps {
   weatherData?: { daily: DailyWeatherData; hourly: HourlyWeatherData } | null;
   temperatureUnit: 'C' | 'F';
+  location?: Location | null;
+  startDate?: string;
 }
 
-export const PrecipitationChart = ({ weatherData, temperatureUnit }: PrecipitationChartProps) => {
+export const PrecipitationChart = ({ weatherData, temperatureUnit, location, startDate }: PrecipitationChartProps): JSX.Element => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Chart rendering constants
+  const CHART_PADDING = 40;
+  const CLOUD_COVER_MAX = 100;
+  const PRECIPITATION_BAR_WIDTH_RATIO = 0.6;
+  const PRECIPITATION_HEIGHT_RATIO = 0.4;
+  const CLOUD_COVER_HEIGHT_RATIO = 0.3;
+  const CLOUD_COVER_VERTICAL_POSITION = 0.7;
+  const LEGEND_SQUARE_SIZE = 15;
+  const FONT_SIZE_SMALL = 12;
+  const FONT_SIZE_MEDIUM = 14;
+  const LABEL_OFFSET_X = 10;
+  const LABEL_OFFSET_Y = 4;
+  const HOUR_LABEL_OFFSET = 10;
+  const LEGEND_PRECIPITATION_X_OFFSET = 80;
+  const LEGEND_PRECIPITATION_TEXT_X_OFFSET = 60;
+  const LEGEND_CLOUD_X_OFFSET = 20;
+  const LEGEND_CLOUD_TEXT_X_OFFSET = 40;
+  const LEGEND_Y_POSITION = 15;
+  const LEGEND_TEXT_Y_POSITION = 27;
+
   useEffect(() => {
-    if (!weatherData || !canvasRef.current) return;
+    if (!weatherData || !location || !canvasRef.current) {
+      return;
+    }
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -27,18 +56,18 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit }: Precipitati
     ctx.clearRect(0, 0, rect.width, rect.height);
 
     // Chart dimensions
-    const padding = 40;
+    const padding = CHART_PADDING;
     const chartWidth = rect.width - padding * 2;
     const chartHeight = rect.height - padding * 2;
 
-    // Data to show
-    const hoursToShow = Math.min(24, weatherData.hourly.time.length);
-    const precipitationData = weatherData.hourly.precipitation.slice(0, hoursToShow);
-    const cloudCoverData = weatherData.hourly.cloudcover.slice(0, hoursToShow);
+    const effectiveStartDate = startDate || new Date().toISOString().split('T')[0];
+    const localData = getLocalDayHours(weatherData.hourly, location, effectiveStartDate);
+    const precipitationData = localData.precip;
+    const cloudCoverData = localData.cloudcover;
 
     // Find max values for scaling
     const maxPrecipitation = Math.max(...precipitationData) || 1;
-    const maxCloudCover = 100; // Cloud cover is percentage
+    const maxCloudCover = CLOUD_COVER_MAX; // Cloud cover is percentage
 
     // Draw chart background
     ctx.fillStyle = '#f8f9fa';
@@ -58,6 +87,7 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit }: Precipitati
     }
 
     // Vertical grid lines
+    const hoursToShow = precipitationData.length;
     for (let i = 0; i <= hoursToShow; i += 3) {
       const x = padding + (chartWidth / hoursToShow) * i;
       ctx.beginPath();
@@ -70,8 +100,8 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit }: Precipitati
     ctx.fillStyle = '#4dabf7';
     precipitationData.forEach((precip: number, index: number) => {
       const x = padding + (chartWidth / hoursToShow) * index;
-      const barWidth = chartWidth / hoursToShow * 0.6;
-      const barHeight = (precip / maxPrecipitation) * (chartHeight * 0.4); // Use 40% of chart height
+      const barWidth = chartWidth / hoursToShow * PRECIPITATION_BAR_WIDTH_RATIO;
+      const barHeight = (precip / maxPrecipitation) * (chartHeight * PRECIPITATION_HEIGHT_RATIO); // Use 40% of chart height
       const y = padding + chartHeight - barHeight;
       
       ctx.fillRect(x + barWidth * 0.2, y, barWidth, barHeight);
@@ -84,7 +114,7 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit }: Precipitati
 
     cloudCoverData.forEach((cover: number, index: number) => {
       const x = padding + (chartWidth / hoursToShow) * index;
-      const y = padding + chartHeight * 0.7 - (cover / maxCloudCover) * (chartHeight * 0.3); // Use top 30% of chart
+      const y = padding + chartHeight * CLOUD_COVER_VERTICAL_POSITION - (cover / maxCloudCover) * (chartHeight * CLOUD_COVER_HEIGHT_RATIO); // Use top 30% of chart
       
       if (index === 0) {
         ctx.moveTo(x, y);
@@ -99,7 +129,7 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit }: Precipitati
     ctx.fillStyle = '#868e96';
     cloudCoverData.forEach((cover: number, index: number) => {
       const x = padding + (chartWidth / hoursToShow) * index;
-      const y = padding + chartHeight * 0.7 - (cover / maxCloudCover) * (chartHeight * 0.3);
+      const y = padding + chartHeight * CLOUD_COVER_VERTICAL_POSITION - (cover / maxCloudCover) * (chartHeight * CLOUD_COVER_HEIGHT_RATIO);
       
       ctx.beginPath();
       ctx.arc(x, y, 3, 0, 2 * Math.PI);
@@ -108,13 +138,13 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit }: Precipitati
 
     // Draw Y-axis labels (left side - precipitation)
     ctx.fillStyle = '#4dabf7';
-    ctx.font = '12px sans-serif';
+    ctx.font = `${FONT_SIZE_SMALL}px sans-serif`;
     ctx.textAlign = 'right';
     
     for (let i = 0; i <= 5; i++) {
       const precip = (maxPrecipitation / 5) * (5 - i);
       const y = padding + (chartHeight / 5) * i;
-      ctx.fillText(`${precip.toFixed(1)}mm`, padding - 10, y + 4);
+      ctx.fillText(`${precip.toFixed(1)}mm`, padding - LABEL_OFFSET_X, y + LABEL_OFFSET_Y);
     }
 
     // Draw Y-axis labels (right side - cloud cover)
@@ -124,7 +154,7 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit }: Precipitati
     for (let i = 0; i <= 5; i++) {
       const cover = (maxCloudCover / 5) * (5 - i);
       const y = padding + (chartHeight / 5) * i;
-      ctx.fillText(`${cover}%`, padding + chartWidth + 10, y + 4);
+      ctx.fillText(`${cover}%`, padding + chartWidth + LABEL_OFFSET_X, y + LABEL_OFFSET_Y);
     }
 
     // Draw X-axis labels (hours)
@@ -133,33 +163,54 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit }: Precipitati
     
     for (let i = 0; i < hoursToShow; i += 3) {
       const x = padding + (chartWidth / hoursToShow) * i;
-      const time = new Date(weatherData.hourly.time[i]);
-      const hourLabel = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      ctx.fillText(hourLabel, x, rect.height - 10);
+      const hourLabel = formatLocalTime(localData.times[i], location.timezone);
+      ctx.fillText(hourLabel, x, rect.height - HOUR_LABEL_OFFSET);
     }
 
     // Draw legend
     ctx.fillStyle = '#4dabf7';
-    ctx.fillRect(rect.width / 2 - 80, 15, 15, 15);
+    ctx.fillRect(rect.width / 2 - LEGEND_PRECIPITATION_X_OFFSET, LEGEND_Y_POSITION, LEGEND_SQUARE_SIZE, LEGEND_SQUARE_SIZE);
     ctx.fillStyle = '#333';
-    ctx.font = '12px sans-serif';
+    ctx.font = `${FONT_SIZE_SMALL}px sans-serif`;
     ctx.textAlign = 'left';
-    ctx.fillText('Precipitation', rect.width / 2 - 60, 27);
+    ctx.fillText('Precipitation', rect.width / 2 - LEGEND_PRECIPITATION_TEXT_X_OFFSET, LEGEND_TEXT_Y_POSITION);
 
     ctx.fillStyle = '#868e96';
-    ctx.fillRect(rect.width / 2 + 20, 15, 15, 15);
+    ctx.fillRect(rect.width / 2 + LEGEND_CLOUD_X_OFFSET, LEGEND_Y_POSITION, LEGEND_SQUARE_SIZE, LEGEND_SQUARE_SIZE);
     ctx.fillStyle = '#333';
-    ctx.fillText('Cloud Cover', rect.width / 2 + 40, 27);
+    ctx.fillText('Cloud Cover', rect.width / 2 + LEGEND_CLOUD_TEXT_X_OFFSET, LEGEND_TEXT_Y_POSITION);
 
     // Draw chart title
     ctx.fillStyle = '#333';
-    ctx.font = '14px sans-serif';
+    ctx.font = `${FONT_SIZE_MEDIUM}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText('Precipitation & Cloud Cover', rect.width / 2, 20);
 
-  }, [weatherData, temperatureUnit]);
+  }, [weatherData, temperatureUnit, location, startDate]);
 
-  if (!weatherData) {
+  // Data guard for empty localData
+  const effectiveStartDate = startDate || new Date().toISOString().split('T')[0];
+  const emptyHourly = {
+    time: [],
+    precipitation: [],
+    cloudcover: [],
+    temperature_2m: [],
+    weathercode: [],
+  } as unknown as HourlyWeatherData;
+  const hourlyData = weatherData?.hourly || emptyHourly;
+  const localData = getLocalDayHours(hourlyData, location || { timezone: 'UTC' } as unknown as Location, effectiveStartDate);
+  if (localData.precip.length === 0 && weatherData && location) {
+    return (
+      <div class="chart-container">
+        <h4>Precipitation & Cloud Cover</h4>
+        <div class="chart-placeholder">
+          <p>No precipitation data available for this date/location</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!weatherData || !location) {
     return (
       <div class="chart-container">
         <h4>Precipitation & Cloud Cover</h4>
@@ -173,8 +224,8 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit }: Precipitati
   return (
     <div class="chart-container">
       <h4>Precipitation & Cloud Cover</h4>
-      <canvas 
-        ref={canvasRef} 
+      <canvas
+        ref={canvasRef}
         style={{ width: '100%', height: '150px' }}
       />
     </div>

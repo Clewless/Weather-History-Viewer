@@ -16,7 +16,7 @@ export const isValidDate = (dateStr: string): boolean => {
     return false;
   }
 
-  const date = new Date(dateStr + 'T00:00:00.000Z'); // Ensure UTC parsing to avoid timezone issues
+  const date = new Date(`${dateStr  }T00:00:00.000Z`); // Ensure UTC parsing to avoid timezone issues
   if (isNaN(date.getTime())) {
     return false;
   }

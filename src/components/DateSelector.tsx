@@ -1,4 +1,5 @@
 import { h } from 'preact';
+
 import { useState, useEffect } from 'preact/hooks';
 
 interface DateSelectorProps {
@@ -40,8 +41,9 @@ export const DateSelector = ({
     startDay.setDate(firstDay.getDate() - firstDay.getDay());
     
     // End on Saturday of the week containing the last day
+    const SATURDAY = 6;
     const endDay = new Date(lastDay);
-    endDay.setDate(lastDay.getDate() + (6 - lastDay.getDay()));
+    endDay.setDate(lastDay.getDate() + (SATURDAY - lastDay.getDay()));
     
     const days: Date[] = [];
     const current = new Date(startDay);
@@ -120,7 +122,7 @@ export const DateSelector = ({
           type="button"
           class="calendar-toggle"
           onClick={() => setShowCalendar(!showCalendar)}
-          aria-label={showCalendar ? "Hide calendar" : "Show calendar"}
+          aria-label={showCalendar ? 'Hide calendar' : 'Show calendar'}
           disabled={loading}
         >
           📅

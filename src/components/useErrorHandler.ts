@@ -1,4 +1,5 @@
 import { h } from 'preact';
+
 import { useState, useCallback } from 'preact/hooks';
 
 interface ErrorState {

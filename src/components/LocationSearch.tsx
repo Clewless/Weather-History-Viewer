@@ -1,5 +1,9 @@
 import { h } from 'preact';
-import { useState } from 'preact/hooks';
+
+import { useState, useMemo } from 'preact/hooks';
+
+import debounce from 'lodash/debounce';
+
 import { bffSearchLocations as searchLocations } from '../api';
 import { Location } from '../open-meteo';
 
@@ -36,10 +40,12 @@ export const LocationSearch = ({ onLocationSelect, currentLocation }: LocationSe
       }
   };
 
+  const debouncedSearch = useMemo(() => debounce(handleSearch, 300), []);
+
   const handleInputChange = (e: Event) => {
-    const value = (e.target as HTMLInputElement).value;
+    const {value} = (e.target as HTMLInputElement);
     setQuery(value);
-    handleSearch(value);
+    debouncedSearch(value);
   };
 
   const handleInputBlur = () => {

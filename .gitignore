@@ -10,7 +10,6 @@ node_modules/
 
 # Build outputs
 dist/
-build/
 coverage/
 
 # Logs
@@ -40,6 +39,3 @@ Thumbs.db
 
 # Testing
 coverage/
-
-# Production
-dist/

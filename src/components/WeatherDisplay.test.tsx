@@ -1,5 +1,7 @@
 import { h } from 'preact';
+
 import { render } from '@testing-library/preact';
+
 import '@testing-library/jest-dom';
 import { WeatherDisplay } from './WeatherDisplay';
 
@@ -124,7 +126,7 @@ describe('WeatherDisplay', () => {
     expect(getByText('Hourly Details')).toBeInTheDocument();
     
     // Check first hour data
-    expect(getByText('12:00 AM')).toBeInTheDocument();
+    expect(getByText('01:00')).toBeInTheDocument();
     expect(getByText('20°')).toBeInTheDocument();
     
     // Use getAllByText for precipitation since there are multiple "0mm" elements

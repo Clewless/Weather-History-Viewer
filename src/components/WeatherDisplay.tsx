@@ -1,4 +1,8 @@
-import { h } from 'preact'; // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Required for JSX factory
+import { h } from 'preact';
+
+import type { JSX } from 'preact/jsx-runtime';
+
+import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
 import { DailyWeatherData, HourlyWeatherData, Location } from '../open-meteo';
 
 interface WeatherDisplayProps {
@@ -9,41 +13,8 @@ interface WeatherDisplayProps {
   error?: string;
 }
 
-const getLocalDayHours = (hourly: HourlyWeatherData, location: Location, startDate: string): { times: (Date | string)[], temps: number[], precip: number[], codes: number[] } => {
-  if (!location || !startDate) return { times: [], temps: [], precip: [], codes: [] };
 
-  const startLocal = new Date(`${startDate}T00:00:00${location.timezone.includes('/') ? location.timezone.replace('/', ' ') : ''}`);
-  const endLocal = new Date(startLocal.getTime() + 24 * 60 * 60 * 1000);
-
-  const localTimes: (Date | string)[] = [];
-  const localTemps: number[] = [];
-  const localPrecip: number[] = [];
-  const localCodes: number[] = [];
-
-  for (let i = 0; i < hourly.time.length; i++) {
-    const time = typeof hourly.time[i] === 'string' ? new Date(hourly.time[i]) : hourly.time[i];
-    if (time >= startLocal && time < endLocal) {
-      localTimes.push(time);
-      localTemps.push(hourly.temperature_2m[i]);
-      localPrecip.push(hourly.precipitation[i]);
-      localCodes.push(hourly.weathercode[i]);
-    }
-  }
-
-  // If no exact match, fall back to first 24
-  if (localTimes.length === 0) {
-    return {
-      times: hourly.time.slice(0, 24),
-      temps: hourly.temperature_2m.slice(0, 24),
-      precip: hourly.precipitation.slice(0, 24),
-      codes: hourly.weathercode.slice(0, 24)
-    };
-  }
-
-  return { times: localTimes, temps: localTemps, precip: localPrecip, codes: localCodes };
-};
-
-export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTemperatureUnitChange, error }: WeatherDisplayProps) => {
+export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTemperatureUnitChange, error }: WeatherDisplayProps): JSX.Element => {
   if (error) {
     return (
       <div class="weather-info">
@@ -62,16 +33,16 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
     );
   }
 
+  // Temperature conversion constants
+  const FAHRENHEIT_CONVERSION_FACTOR = 9/5;
+  const FAHRENHEIT_CONVERSION_OFFSET = 32;
+
   const convertTemperature = (tempC: number): number => {
-    return temperatureUnit === 'F' ? (tempC * 9/5) + 32 : tempC;
+    return temperatureUnit === 'F' ? (tempC * FAHRENHEIT_CONVERSION_FACTOR) + FAHRENHEIT_CONVERSION_OFFSET : tempC;
   };
 
-  const formatTime = (time: Date | string): string => {
-    const date = typeof time === 'string' ? new Date(time) : time;
-    return date.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatTime = (time: string, timezone: string): string => {
+    return formatLocalTime(time, timezone);
   };
 
   const formatDate = (time: Date | string): string => {
@@ -135,7 +106,7 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
     <div class="weather-info" role="region" aria-label="Weather information">
       <div class="weather-header">
         <div class="location-name">
-          {location.name}, {location.country}
+          {location?.name ?? 'Unknown'}, {location?.country ?? ''}
         </div>
         <div class="temp-toggle">
           <button
@@ -161,7 +132,7 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
       <div class="daily-weather">
         <h4>Daily Summary</h4>
         <div class="daily-grid" role="grid" aria-label="Daily weather grid">
-          {weatherData.daily.time.map((time: Date | string, index: number) => {
+          {weatherData.daily.time.length > 0 ? weatherData.daily.time.map((time: Date | string, index: number) => {
             const date = typeof time === 'string' ? new Date(time) : time;
             return (
               <div key={index} class="daily-item" role="gridcell">
@@ -178,7 +149,7 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
                 </div>
               </div>
             );
-          })}
+          }) : <p>No daily data available</p>}
         </div>
       </div>
   
@@ -188,27 +159,24 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
         <div class="hourly-grid" role="grid" aria-label="Hourly weather grid">
           {(() => {
             const firstTime = weatherData?.daily.time[0];
-            const startDate = firstTime ? 
-              (typeof firstTime === 'string' ? new Date(firstTime) : firstTime).toISOString().split('T')[0] : 
+            const startDate = firstTime ?
+              (typeof firstTime === 'string' ? firstTime : firstTime.toISOString()).split('T')[0] :
               '';
-            const localHours = getLocalDayHours(weatherData.hourly, location!, startDate);
-            return localHours.times.map((time: Date | string, index: number) => {
-              const date = typeof time === 'string' ? new Date(time) : time;
-              return (
-                <div key={index} class="hourly-item" role="gridcell">
-                  <div class="hourly-time">{formatTime(date)}</div>
-                  <div class="hourly-icon" aria-label={getWeatherDescription(localHours.codes[index])}>
-                    {getWeatherIcon(localHours.codes[index])}
-                  </div>
-                  <div class="hourly-temp">
-                    {Math.round(convertTemperature(localHours.temps[index]))}°
-                  </div>
-                  <div class="hourly-precip">
-                    {localHours.precip[index]}mm
-                  </div>
+            const localHours = getLocalDayHours(weatherData.hourly, location || { timezone: 'UTC' } as Location, startDate);
+            return localHours.times.length > 0 ? localHours.times.map((time: string, index: number) => (
+              <div key={index} class="hourly-item" role="gridcell">
+                <div class="hourly-time">{formatTime(time, location?.timezone ?? 'UTC')}</div>
+                <div class="hourly-icon" aria-label={getWeatherDescription(localHours.codes[index])}>
+                  {getWeatherIcon(localHours.codes[index])}
                 </div>
-              );
-            });
+                <div class="hourly-temp">
+                  {Math.round(convertTemperature(localHours.temps[index]))}°
+                </div>
+                <div class="hourly-precip">
+                  {localHours.precip[index]}mm
+                </div>
+              </div>
+            )) : <p>No hourly data available</p>;
           })()}
         </div>
       </div>

@@ -2,6 +2,8 @@
  * Custom error classes for better error handling and debugging
  */
 
+import { ErrorResponse } from './types';
+
 export class NetworkError extends Error {
   constructor(message: string, public statusCode?: number) {
     super(message);
@@ -10,14 +12,14 @@ export class NetworkError extends Error {
 }
 
 export class APIError extends Error {
-  constructor(message: string, public statusCode?: number, public apiResponse?: any) {
+  constructor(message: string, public statusCode?: number, public apiResponse?: unknown) {
     super(message);
     this.name = 'APIError';
   }
 }
 
 export class ValidationError extends Error {
-  constructor(message: string, public field?: string, public value?: any) {
+  constructor(message: string, public field?: string, public value?: unknown) {
     super(message);
     this.name = 'ValidationError';
   }
@@ -38,17 +40,6 @@ export class RateLimitError extends Error {
 }
 
 /**
- * Standardized error response format for API communication
- */
-export interface ErrorResponse {
-  error: string;
-  field?: string;
-  details?: string;
-  statusCode?: number;
-  timestamp?: string;
-}
-
-/**
  * Helper function to determine error type and wrap appropriately
  */
 export function wrapError(error: unknown, context: string): Error {
@@ -61,7 +52,7 @@ export function wrapError(error: unknown, context: string): Error {
 
     // Check if it's an axios error
     if (typeof error === 'object' && error !== null && 'isAxiosError' in error) {
-      const axiosError = error as any;
+      const axiosError = error as { response?: { status: number; statusText: string; data: unknown }; request?: unknown };
       if (axiosError.response) {
         return new APIError(
           `${context}: ${axiosError.response.status} ${axiosError.response.statusText}`,

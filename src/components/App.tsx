@@ -1,8 +1,11 @@
 import { h, Component } from 'preact';
+
 import { useState, useEffect, useCallback, useMemo } from 'preact/hooks';
+
 import { bffSearchLocations, bffGetWeather, bffReverseGeocode } from '../api';
 import { Location, DailyWeatherData, HourlyWeatherData } from '../open-meteo';
 import { CacheManager } from '../utils/cacheManager';
+
 import { MapComponent } from './MapComponent';
 import { DateSelector } from './DateSelector';
 import { LocationSearch } from './LocationSearch';
@@ -10,7 +13,12 @@ import { WeatherDisplay } from './WeatherDisplay';
 import { TemperatureChart } from './TemperatureChart';
 import { PrecipitationChart } from './PrecipitationChart';
 import { useErrorHandler } from './useErrorHandler';
+
 import '../styles.css';
+
+// Default location coordinates (New York City)
+const DEFAULT_LATITUDE = 40.7128;
+const DEFAULT_LONGITUDE = -74.0060;
 
 
 interface ErrorBoundaryProps {
@@ -264,8 +272,8 @@ const App = () => {
       const defaultLocation: Location = {
         id: 5128581,
         name: 'New York',
-        latitude: 40.7128,
-        longitude: -74.0060,
+        latitude: DEFAULT_LATITUDE,
+        longitude: DEFAULT_LONGITUDE,
         elevation: 10,
         feature_code: 'PPL',
         country_code: 'US',
@@ -332,8 +340,8 @@ const App = () => {
           </div>
           <div class="map-section">
             <MapComponent
-             latitude={currentLocation?.latitude || 40.7128}
-             longitude={currentLocation?.longitude || -74.0060}
+             latitude={currentLocation?.latitude || DEFAULT_LATITUDE}
+             longitude={currentLocation?.longitude || DEFAULT_LONGITUDE}
              onLocationSelect={handleMapLocationSelect}
              aria-label="Interactive map for location selection"
            />

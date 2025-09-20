@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
@@ -13,10 +14,12 @@ module.exports = {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: 'tsconfig.json',
       diagnostics: true
-    }],
-    '^.+\\.jsx?$': 'ts-jest'
+    }]
   },
   transformIgnorePatterns: [
     '/node_modules/(?!preact).*/'
-  ]
+  ],
+  testEnvironmentOptions: {
+    url: 'http://localhost:3000'
+  }
 };
