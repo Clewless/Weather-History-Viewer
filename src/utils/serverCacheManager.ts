@@ -2,9 +2,12 @@
  * Server-side cache utility for caching API responses
  */
 
-export interface CacheItem<T> {
+import { getCurrentTimestamp } from './dateUtils';
+
+interface CacheItem<T> {
   data: T;
   expiry: number;
+  lastAccessed: number;
   createdAt: number;
 }
 
@@ -16,6 +19,8 @@ export class ServerCacheManager<T> {
   private cleanupTimer: NodeJS.Timeout | null;
   private hitCount: number;
   private missCount: number;
+  // Keep track of items to clean up to avoid iterating through all items
+  private itemsToCleanup: Set<string>;
 
   constructor(defaultTTL: number = 5 * 60 * 1000, maxSize: number = 1000, cleanupInterval: number = 60 * 1000) {
     this.cache = new Map();
@@ -25,6 +30,7 @@ export class ServerCacheManager<T> {
     this.cleanupTimer = null;
     this.hitCount = 0;
     this.missCount = 0;
+    this.itemsToCleanup = new Set();
     
     // Start automatic cleanup
     this.startCleanup();
@@ -44,12 +50,15 @@ export class ServerCacheManager<T> {
     }
     
     // Check if expired
-    if (Date.now() > item.expiry) {
+    if (getCurrentTimestamp() > item.expiry) {
       this.cache.delete(key);
+      this.itemsToCleanup.delete(key);
       this.missCount++;
       return null;
     }
     
+    // Update last accessed time for LRU tracking
+    item.lastAccessed = getCurrentTimestamp();
     this.hitCount++;
     return item.data;
   }
@@ -61,7 +70,7 @@ export class ServerCacheManager<T> {
    * @param ttl - Time to live in milliseconds (optional, uses default if not provided)
    */
   set(key: string, data: T, ttl?: number): void {
-    const now = Date.now();
+    const now = getCurrentTimestamp();
     const expiry = now + (ttl ?? this.defaultTTL);
     
     // Check if we need to evict items to stay within size limit
@@ -72,8 +81,14 @@ export class ServerCacheManager<T> {
     this.cache.set(key, {
       data,
       expiry,
+      lastAccessed: now,
       createdAt: now
     });
+    
+    // Add to cleanup tracking if it's not already there
+    if (getCurrentTimestamp() > expiry) {
+      this.itemsToCleanup.add(key);
+    }
   }
 
   /**
@@ -81,7 +96,9 @@ export class ServerCacheManager<T> {
    * @param key - Cache key
    */
   delete(key: string): boolean {
-    return this.cache.delete(key);
+    const result = this.cache.delete(key);
+    this.itemsToCleanup.delete(key);
+    return result;
   }
 
   /**
@@ -95,8 +112,9 @@ export class ServerCacheManager<T> {
       return false;
     }
     
-    if (Date.now() > item.expiry) {
+    if (getCurrentTimestamp() > item.expiry) {
       this.cache.delete(key);
+      this.itemsToCleanup.delete(key);
       return false;
     }
     
@@ -108,6 +126,7 @@ export class ServerCacheManager<T> {
    */
   clear(): void {
     this.cache.clear();
+    this.itemsToCleanup.clear();
     this.hitCount = 0;
     this.missCount = 0;
   }
@@ -148,12 +167,28 @@ export class ServerCacheManager<T> {
    */
   cleanup(): number {
     let count = 0;
-    const now = Date.now();
+    const now = getCurrentTimestamp();
     
-    for (const [key, item] of this.cache.entries()) {
-      if (now > item.expiry) {
-        this.cache.delete(key);
-        count++;
+    // If we have items to cleanup, only check those
+    if (this.itemsToCleanup.size > 0) {
+      for (const key of this.itemsToCleanup) {
+        const item = this.cache.get(key);
+        if (item && now > item.expiry) {
+          this.cache.delete(key);
+          this.itemsToCleanup.delete(key);
+          count++;
+        } else {
+          // Remove from cleanup list if not expired
+          this.itemsToCleanup.delete(key);
+        }
+      }
+    } else {
+      // Fallback to checking all items if cleanup list is empty
+      for (const [key, item] of this.cache.entries()) {
+        if (now > item.expiry) {
+          this.cache.delete(key);
+          count++;
+        }
       }
     }
     
@@ -184,21 +219,22 @@ export class ServerCacheManager<T> {
   }
 
   /**
-   * Evict the least recently used item (oldest created item)
+   * Evict the least recently used item
    */
   private evictLRU(): void {
-    let oldestKey: string | null = null;
-    let oldestTime = Infinity;
+    let lruKey: string | null = null;
+    let lruTime = Infinity;
     
     for (const [key, item] of this.cache.entries()) {
-      if (item.createdAt < oldestTime) {
-        oldestTime = item.createdAt;
-        oldestKey = key;
+      if (item.lastAccessed < lruTime) {
+        lruTime = item.lastAccessed;
+        lruKey = key;
       }
     }
     
-    if (oldestKey) {
-      this.cache.delete(oldestKey);
+    if (lruKey) {
+      this.cache.delete(lruKey);
+      this.itemsToCleanup.delete(lruKey);
     }
   }
 }

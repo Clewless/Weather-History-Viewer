@@ -13,33 +13,53 @@ interface EnvVarConfig {
 }
 
 const defaultEnvVars = {
-   PORT: {
-     required: false,
-     validator: (value: string) => {
-       const port = parseInt(value, 10);
-       return !isNaN(port) && port > 0 && port < 65536;
-     },
-     defaultValue: '3001',
-     description: 'Server port number (1-65535)'
-   },
-   FRONTEND_PORT: {
-     required: false,
-     validator: (value: string) => {
-       const port = parseInt(value, 10);
-       return !isNaN(port) && port > 0 && port < 65536;
-     },
-     defaultValue: '3000',
-     description: 'Frontend port number (1-65535)'
-   },
-   CORS_ORIGIN: {
-     required: false,
-     validator: (value: string) => {
-       // Simple URL validation - can be enhanced if needed
-       return value.length > 0 && (value.startsWith('http://') || value.startsWith('https://'));
-     },
-     defaultValue: 'http://localhost:3000',
-     description: 'Allowed CORS origins (comma-separated URLs)'
-   },
+  PORT: {
+    required: false,
+    validator: (value: string) => {
+      const port = parseInt(value, 10);
+      return !isNaN(port) && port > 0 && port < 65536;
+    },
+    defaultValue: '3001',
+    description: 'Server port number (1-65535)'
+  },
+  FRONTEND_PORT: {
+    required: false,
+    validator: (value: string) => {
+      const port = parseInt(value, 10);
+      return !isNaN(port) && port > 0 && port < 65536;
+    },
+    defaultValue: '3000',
+    description: 'Frontend port number (1-65535)'
+  },
+  CORS_ORIGIN: {
+    required: false,
+    validator: (value: string) => {
+      // Allow comma-separated list of origins
+      // Each origin can be a URL or a simple hostname
+      const origins = value.split(',').map(origin => origin.trim());
+      return origins.every(origin => {
+        // Empty origin is valid (means no restriction in some contexts)
+        if (origin === '') return true;
+        // Allow hostnames without protocol (e.g., localhost:3000)
+        if (!origin.includes('://')) {
+          return origin.length > 0;
+        }
+        // For URLs, check they start with http:// or https://
+        return origin.startsWith('http://') || origin.startsWith('https://');
+      });
+    },
+    defaultValue: 'http://localhost:3000',
+    description: 'Allowed CORS origins (comma-separated URLs or hostnames)'
+  },
+  CORS_FALLBACK_DISABLED: {
+    required: false,
+    validator: (value: string) => {
+      // Should be a boolean value
+      return value === 'true' || value === 'false' || value === '';
+    },
+    defaultValue: 'false',
+    description: 'Disable CORS fallback in production (true/false)'
+  },
   NODE_ENV: {
     required: false,
     validator: (value: string) => {
@@ -62,7 +82,7 @@ const defaultEnvVars = {
       // Simple URL validation - can be enhanced if needed
       return value.length > 0 && (value.startsWith('http://') || value.startsWith('https://'));
     },
-    defaultValue: 'http://localhost:3001/api',
+    defaultValue: 'http://localhost:3001', // Removed /api suffix to make it more flexible
     description: 'Base URL for API requests'
   }
 };
@@ -119,7 +139,7 @@ export function validateEnvVars(): void {
   for (const [name, config] of Object.entries(defaultEnvVars)) {
     try {
       getEnvVar(name, config);
-    } catch (error) {
+    } catch (error: unknown) {
       if (error instanceof ConfigurationError) {
         errors.push(error.message);
       }
@@ -128,7 +148,8 @@ export function validateEnvVars(): void {
   
   // Throw all errors at once
   if (errors.length > 0) {
-    throw new ConfigurationError(`Environment validation failed:\n${errors.join('\n')}`);
+    throw new ConfigurationError(`Environment validation failed:
+${errors.join('\n')}`);
   }
 
   // Warn if Open-Meteo API key is missing (optional but recommended)

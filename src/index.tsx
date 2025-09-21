@@ -3,7 +3,8 @@
  * Preact is a lightweight alternative to React with a compatible API.
  * The 'h' function is Preact's equivalent of React.createElement.
  */
-import { h, render } from 'preact';
+import { h } from 'preact';
+import { render } from 'preact';
 
 import App from './components/App';
 

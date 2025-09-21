@@ -1,6 +1,5 @@
 /* eslint-disable no-undef */
 module.exports = {
-  preset: 'ts-jest',
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
   moduleNameMapper: {
@@ -8,16 +7,20 @@ module.exports = {
     '^react$': 'preact/compat',
     '^react-dom/test-utils$': 'preact/test-utils',
     '^react-dom$': 'preact/compat',
-    '@testing-library/preact': '<rootDir>/node_modules/@testing-library/preact/dist/cjs/index.js'
+    '^react/jsx-runtime$': 'preact/jsx-runtime',
+    '^@testing-library/preact$': '<rootDir>/node_modules/@testing-library/preact/dist/cjs/index.js'
   },
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      tsconfig: 'tsconfig.json',
-      diagnostics: true
+    '^.+\\.(js|jsx|ts|tsx)$': ['ts-jest', {
+      tsconfig: {
+        jsx: 'react-jsx',
+        module: 'esnext',
+        jsxImportSource: 'preact'
+      }
     }]
   },
   transformIgnorePatterns: [
-    '/node_modules/(?!preact).*/'
+    'node_modules/(?!preact/).*'
   ],
   testEnvironmentOptions: {
     url: 'http://localhost:3000'

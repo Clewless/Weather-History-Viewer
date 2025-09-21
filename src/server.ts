@@ -23,6 +23,8 @@ import {
   DailyWeatherData,
   HourlyWeatherData
 } from './open-meteo';
+import { getCurrentISODate } from './utils/dateUtils';
+import { CACHE_TTL, RATE_LIMITS, GEOLOCATION_CONFIG, FALLBACK_LOCATION } from './constants';
 
 // Load environment variables from .env file
 config();
@@ -52,9 +54,9 @@ const corsOrigins = getEnvVar('CORS_ORIGIN');
 const nodeEnv = getEnvVar('NODE_ENV');
 
 // Create cache managers for different API endpoints
-const searchCache = new ServerCacheManager<GeoLocation[]>(5 * 60 * 1000, 500, 5 * 60 * 1000); // 5 minutes TTL, max 500 items
-const weatherCache = new ServerCacheManager<{ daily: DailyWeatherData; hourly: HourlyWeatherData }>(30 * 60 * 1000, 200, 10 * 60 * 1000); // 30 minutes TTL, max 200 items
-const reverseGeocodeCache = new ServerCacheManager<GeoLocation>(10 * 60 * 1000, 300, 5 * 60 * 1000); // 10 minutes TTL, max 300 items
+const searchCache = new ServerCacheManager<GeoLocation[]>(CACHE_TTL.SERVER_SEARCH, 500, 5 * 60 * 1000);
+const weatherCache = new ServerCacheManager<{ daily: DailyWeatherData; hourly: HourlyWeatherData }>(CACHE_TTL.SERVER_WEATHER, 200, 10 * 60 * 1000);
+const reverseGeocodeCache = new ServerCacheManager<GeoLocation>(CACHE_TTL.SERVER_REVERSE_GEOCODE, 300, 5 * 60 * 1000);
 
 // Create CORS middleware with environment-specific configuration
 const corsMiddleware = createCorsMiddleware(nodeEnv, corsOrigins, frontendPort);
@@ -62,8 +64,8 @@ app.use(corsMiddleware);
 
 // Rate limiting configuration
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs for general API
+  windowMs: RATE_LIMITS.GENERAL.WINDOW_MS,
+  max: RATE_LIMITS.GENERAL.MAX_REQUESTS,
   message: 'Too many requests from this IP, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
@@ -75,8 +77,8 @@ app.use('/api/reverse-geocode', apiLimiter);
 
 // More restrictive rate limiting for weather data endpoint
 const weatherLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // limit each IP to 50 requests per windowMs for weather data
+  windowMs: RATE_LIMITS.WEATHER.WINDOW_MS,
+  max: RATE_LIMITS.WEATHER.MAX_REQUESTS,
   message: 'Too many weather data requests from this IP, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
@@ -88,7 +90,19 @@ app.use('/api/weather', weatherLimiter);
  * Health check endpoint
  */
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: getCurrentISODate(),
+    uptime: process.uptime(),
+    memory: {
+      rss: Math.round(process.memoryUsage().rss / 1024 / 1024 * 100) / 100, // MB
+      heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024 * 100) / 100, // MB
+      heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024 * 100) / 100, // MB
+      external: Math.round(process.memoryUsage().external / 1024 / 1024 * 100) / 100 // MB
+    },
+    nodeEnv,
+    port
+  });
 });
 
 /**
@@ -232,22 +246,33 @@ app.get('/api/reverse-geocode', async (req, res) => {
   }
 });
 
-// Add endpoint to get cache statistics
-app.get('/api/cache-stats', (req, res) => {
-  res.json({
-    search: searchCache.getStats(),
-    weather: weatherCache.getStats(),
-    reverse: reverseGeocodeCache.getStats()
+// Add endpoint to get cache statistics (only in development environment)
+if (nodeEnv === 'development') {
+  app.get('/api/cache-stats', (req, res) => {
+    res.json({
+      search: searchCache.getStats(),
+      weather: weatherCache.getStats(),
+      reverse: reverseGeocodeCache.getStats()
+    });
   });
-});
-
-// Add endpoint to clear cache (useful for development)
-app.post('/api/cache-clear', (req, res) => {
-  searchCache.clear();
-  weatherCache.clear();
-  reverseGeocodeCache.clear();
-  res.json({ message: 'All caches cleared' });
-});
+  
+  // Add endpoint to clear cache (useful for development)
+  app.post('/api/cache-clear', (req, res) => {
+    searchCache.clear();
+    weatherCache.clear();
+    reverseGeocodeCache.clear();
+    res.json({ message: 'All caches cleared' });
+  });
+} else {
+  // In production, return a minimal response
+  app.get('/api/cache-stats', (req, res) => {
+    res.status(404).json({ message: 'Endpoint not available in production' });
+  });
+  
+  app.post('/api/cache-clear', (req, res) => {
+    res.status(404).json({ message: 'Endpoint not available in production' });
+  });
+}
 
 // Centralized error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -3,9 +3,9 @@ import { h } from 'preact';
 import type { JSX } from 'preact/jsx-runtime';
 import { useEffect, useRef } from 'preact/hooks';
 
-
-import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
 import { DailyWeatherData, HourlyWeatherData, Location } from '../open-meteo';
+import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
+import { getCurrentDateString } from '../utils/dateUtils';
 
 interface TemperatureChartProps {
   weatherData?: { daily: DailyWeatherData; hourly: HourlyWeatherData } | null;
@@ -46,7 +46,7 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
     const chartWidth = rect.width - padding * 2;
     const chartHeight = rect.height - padding * 2;
 
-    const effectiveStartDate = startDate || new Date().toISOString().split('T')[0];
+    const effectiveStartDate = startDate || getCurrentDateString();
     const localData = getLocalDayHours(weatherData.hourly, location, effectiveStartDate);
     const temperatures = localData.temps.map((temp: number) => 
       temperatureUnit === 'F' ? (temp * FAHRENHEIT_CONVERSION_FACTOR) + FAHRENHEIT_CONVERSION_OFFSET : temp
@@ -143,7 +143,7 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
   }, [weatherData, temperatureUnit, location, startDate]);
 
   // Data guard for empty localData
-  const effectiveStartDate = startDate || new Date().toISOString().split('T')[0];
+  const effectiveStartDate = startDate || getCurrentDateString();
   const emptyHourly = {
     time: [],
     temperature_2m: [],

@@ -32,14 +32,7 @@ export interface CacheStats {
   size: number;
   maxSize: number;
   defaultTTL: number;
-  hitCount?: number;
-  missCount?: number;
-  hitRate?: number;
-}
-
-export interface CacheOptions {
-  defaultTTL?: number;
-  maxSize?: number;
-  cleanupInterval?: number;
-  evictionStrategy?: 'LRU' | 'LFU';
+  hitCount: number;
+  missCount: number;
+  hitRate: number;
 }

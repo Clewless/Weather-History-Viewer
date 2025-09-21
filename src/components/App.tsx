@@ -1,10 +1,14 @@
-import { h, Component } from 'preact';
+import { h, Component, render } from 'preact';
 
 import { useState, useEffect, useCallback, useMemo } from 'preact/hooks';
+
+import { startOfDay } from 'date-fns';
 
 import { bffSearchLocations, bffGetWeather, bffReverseGeocode } from '../api';
 import { Location, DailyWeatherData, HourlyWeatherData } from '../open-meteo';
 import { CacheManager } from '../utils/cacheManager';
+import { getCurrentDateString, parseDateString, getCurrentTimestamp, createDateFromTimestamp } from '../utils/dateUtils';
+import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, CACHE_TTL } from '../constants';
 
 import { MapComponent } from './MapComponent';
 import { DateSelector } from './DateSelector';
@@ -13,56 +17,11 @@ import { WeatherDisplay } from './WeatherDisplay';
 import { TemperatureChart } from './TemperatureChart';
 import { PrecipitationChart } from './PrecipitationChart';
 import { useErrorHandler } from './useErrorHandler';
+import { ErrorBoundary } from './ErrorBoundary';
 
 import '../styles.css';
 
-// Default location coordinates (New York City)
-const DEFAULT_LATITUDE = 40.7128;
-const DEFAULT_LONGITUDE = -74.0060;
 
-
-interface ErrorBoundaryProps {
-  children: unknown;
-  onError: (error: Error) => void;
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-}
-
-// ErrorBoundary component to catch and handle errors gracefully
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(_error: Error): ErrorBoundaryState {
-    // Unused param, but kept for standard signature
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: unknown) {
-    // Log error info for debugging
-    console.error('Error boundary caught:', error, errorInfo);
-    this.props.onError(error);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div class="error-boundary">
-          <h2>Something went wrong</h2>
-          <p>We're sorry, but an unexpected error occurred. Please try refreshing the page or come back later.</p>
-          <button onClick={() => window.location.reload()} class="retry-button">
-            Reload Page
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 interface WeatherData {
   daily: DailyWeatherData;
@@ -74,12 +33,13 @@ const App = () => {
   const [geolocationRequested, setGeolocationRequested] = useState<boolean>(false);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [temperatureUnit, setTemperatureUnit] = useState<'C' | 'F'>('F');
-  const { error, isLoading, handleError, clearError, setLoadingState } = useErrorHandler();
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { error, handleError, clearError } = useErrorHandler();
 
   // Create cache managers with different TTLs for different data types using useMemo
-  const searchCache = useMemo(() => new CacheManager<Location[]>(5 * 60 * 1000), []); // 5 minutes
-  const weatherCache = useMemo(() => new CacheManager<WeatherData>(60 * 60 * 1000), []); // 1 hour
-  const reverseGeocodeCache = useMemo(() => new CacheManager<Location>(30 * 60 * 1000), []); // 30 minutes
+  const searchCache = useMemo(() => new CacheManager<Location[]>(CACHE_TTL.SEARCH), []);
+  const weatherCache = useMemo(() => new CacheManager<WeatherData>(CACHE_TTL.WEATHER), []);
+  const reverseGeocodeCache = useMemo(() => new CacheManager<Location>(CACHE_TTL.REVERSE_GEOCODE), []);
 
   const getCacheKey = useCallback((fnName: string, ...args: unknown[]) => `${fnName}:${JSON.stringify(args)}`, []);
 
@@ -111,7 +71,7 @@ const App = () => {
   }, [reverseGeocodeCache, getCacheKey]);
 
   const fetchWeatherData = useCallback(async (location: Location, start: string, end: string) => {
-    setLoadingState(true);
+    setIsLoading(true);
     clearError();
     try {
       const data = await cachedGetWeather(location, start, end);
@@ -120,14 +80,14 @@ const App = () => {
       const errorMsg = 'Failed to fetch weather data. Please check your inputs and try again.';
       handleError(errorMsg);
     } finally {
-      setLoadingState(false);
+      setIsLoading(false);
     }
-  }, [cachedGetWeather, setLoadingState, clearError, handleError, setWeatherData]);
+  }, [cachedGetWeather, setIsLoading, clearError, handleError, setWeatherData]);
 
   const handleGeolocationClick = useCallback(async () => {
     if (geolocationRequested) return;
     setGeolocationRequested(true);
-    setLoadingState(true);
+    setIsLoading(true);
     clearError();
     
     if ('geolocation' in navigator) {
@@ -172,13 +132,13 @@ const App = () => {
           handleError('Geolocation error. Using default location.', 'warning');
         }
       } finally {
-        setLoadingState(false);
+        setIsLoading(false);
       }
     } else {
       handleError('Geolocation not supported by this browser.', 'warning');
-      setLoadingState(false);
+      setIsLoading(false);
     }
-  }, [geolocationRequested, cachedReverseGeocode, handleError, setCurrentLocation, setLoadingState, clearError, setGeolocationRequested]);
+  }, [geolocationRequested, cachedReverseGeocode, handleError, setCurrentLocation, setIsLoading, clearError, setGeolocationRequested]);
 
   const handleLocationSelect = useCallback((location: Location) => {
     clearError();
@@ -188,7 +148,7 @@ const App = () => {
 
   const handleMapLocationSelect = useCallback(async (lat: number, lng: number) => {
     clearError();
-    setLoadingState(true);
+    setIsLoading(true);
     try {
       const location = await cachedReverseGeocode(lat, lng);
       setCurrentLocation(location);
@@ -196,18 +156,17 @@ const App = () => {
     } catch {
       handleError('Failed to get location from map click');
     } finally {
-      setLoadingState(false);
+      setIsLoading(false);
     }
-  }, [clearError, setLoadingState, cachedReverseGeocode, setCurrentLocation, handleError]);
+  }, [clearError, setIsLoading, cachedReverseGeocode, setCurrentLocation, handleError]);
 
   const handleTemperatureUnitChange = useCallback((unit: 'C' | 'F') => {
     setTemperatureUnit(unit);
   }, [setTemperatureUnit]);
 
   // Set default to today
-  const today = new Date();
-  const formatDate = (date: Date): string => date.toISOString().split('T')[0];
-  const [selectedDate, setSelectedDate] = useState<string>(formatDate(today));
+  const todayString = getCurrentDateString();
+  const [selectedDate, setSelectedDate] = useState<string>(todayString);
 
   // Debounce utility to prevent excessive API calls on rapid date changes
   const debounce = useCallback((callback: (date: string) => void, delay: number) => {
@@ -227,22 +186,24 @@ const App = () => {
     }
     
     // More robust date validation
-    const [year, month, day] = date.split('-').map(Number);
-    const parsedDate = new Date(year, month - 1, day); // month is 0-indexed in Date constructor
+    const parsedDate = parseDateString(date); // Use dateUtils function
     
-    // Check if the date is valid (e.g., not February 30)
-    if (parsedDate.getFullYear() !== year || 
-        parsedDate.getMonth() !== month - 1 || 
-        parsedDate.getDate() !== day) {
-      handleError('Invalid date provided (e.g., February 30)');
+    // Check if the date is valid
+    if (!parsedDate) {
+      handleError('Invalid date provided');
       return false;
     }
     
     // Check if date is in the future
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayString = getCurrentDateString();
+    const todayDate = parseDateString(todayString);
+    if (!todayDate) {
+      handleError('Unable to determine current date');
+      return false;
+    }
+    const today = startOfDay(todayDate);
     parsedDate.setHours(0, 0, 0, 0);
-    
+
     if (parsedDate > today) {
       handleError('Selected date cannot be in the future');
       return false;
@@ -265,7 +226,7 @@ const App = () => {
     // Load default location without geolocation
     const controller = new AbortController();
     const loadDefaultLocation = async () => {
-      setLoadingState(true);
+      setIsLoading(true);
       clearError();
       
       // Use hardcoded default location (New York) to avoid API dependency on startup
@@ -285,18 +246,27 @@ const App = () => {
       handleError('Using default location: New York', 'info');
       // Initial fetch with selected date
       fetchWeatherData(defaultLocation, selectedDate, selectedDate);
-      setLoadingState(false);
+      setIsLoading(false);
     };
 
     loadDefaultLocation();
     return () => controller.abort();
-  }, [cachedSearchLocations, fetchWeatherData, setLoadingState, clearError, handleError, selectedDate, setCurrentLocation]);
+  }, [cachedSearchLocations, fetchWeatherData, setIsLoading, clearError, handleError, selectedDate, setCurrentLocation]);
 
   useEffect(() => {
-    if (currentLocation && selectedDate && !isLoading) {
+    if (currentLocation && selectedDate) {
       fetchWeatherData(currentLocation, selectedDate, selectedDate);
     }
-  }, [currentLocation, selectedDate, isLoading, fetchWeatherData]);
+  }, [currentLocation, selectedDate, fetchWeatherData]);
+
+  // Cleanup cache managers on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      searchCache.stopCleanup();
+      weatherCache.stopCleanup();
+      reverseGeocodeCache.stopCleanup();
+    };
+  }, [searchCache, weatherCache, reverseGeocodeCache]);
 
   return (
     <ErrorBoundary onError={(error) => handleError(error.message, 'error')}>
@@ -339,34 +309,42 @@ const App = () => {
            />
           </div>
           <div class="map-section">
-            <MapComponent
-             latitude={currentLocation?.latitude || DEFAULT_LATITUDE}
-             longitude={currentLocation?.longitude || DEFAULT_LONGITUDE}
-             onLocationSelect={handleMapLocationSelect}
-             aria-label="Interactive map for location selection"
-           />
+            <ErrorBoundary>
+              <MapComponent
+                latitude={currentLocation?.latitude || DEFAULT_LATITUDE}
+                longitude={currentLocation?.longitude || DEFAULT_LONGITUDE}
+                onLocationSelect={handleMapLocationSelect}
+                aria-label="Interactive map for location selection"
+              />
+            </ErrorBoundary>
           </div>
         </div>
 
         {!isLoading && !error?.message && (
           <div class="weather-section">
-            <WeatherDisplay
-              weatherData={weatherData}
-              location={currentLocation}
-              temperatureUnit={temperatureUnit}
-              onTemperatureUnitChange={handleTemperatureUnitChange}
-              aria-label="Weather display for selected location and date range"
-            />
-            <TemperatureChart
-              weatherData={weatherData}
-              temperatureUnit={temperatureUnit}
-              aria-label="Temperature chart"
-            />
-            <PrecipitationChart
-              weatherData={weatherData}
-              temperatureUnit={temperatureUnit}
-              aria-label="Precipitation chart"
-            />
+            <ErrorBoundary>
+              <WeatherDisplay
+                weatherData={weatherData}
+                location={currentLocation}
+                temperatureUnit={temperatureUnit}
+                onTemperatureUnitChange={handleTemperatureUnitChange}
+                aria-label="Weather display for selected location and date range"
+              />
+            </ErrorBoundary>
+            <ErrorBoundary>
+              <TemperatureChart
+                weatherData={weatherData}
+                temperatureUnit={temperatureUnit}
+                aria-label="Temperature chart"
+              />
+            </ErrorBoundary>
+            <ErrorBoundary>
+              <PrecipitationChart
+                weatherData={weatherData}
+                temperatureUnit={temperatureUnit}
+                aria-label="Precipitation chart"
+              />
+            </ErrorBoundary>
           </div>
         )}
       </div>

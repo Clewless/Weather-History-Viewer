@@ -3,9 +3,9 @@ import { h } from 'preact';
 import type { JSX } from 'preact/jsx-runtime';
 import { useEffect, useRef } from 'preact/hooks';
 
-
-import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
 import { DailyWeatherData, HourlyWeatherData, Location } from '../open-meteo';
+import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
+import { getCurrentDateString } from '../utils/dateUtils';
 
 interface PrecipitationChartProps {
   weatherData?: { daily: DailyWeatherData; hourly: HourlyWeatherData } | null;
@@ -60,7 +60,7 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
     const chartWidth = rect.width - padding * 2;
     const chartHeight = rect.height - padding * 2;
 
-    const effectiveStartDate = startDate || new Date().toISOString().split('T')[0];
+    const effectiveStartDate = startDate || getCurrentDateString();
     const localData = getLocalDayHours(weatherData.hourly, location, effectiveStartDate);
     const precipitationData = localData.precip;
     const cloudCoverData = localData.cloudcover;
@@ -189,7 +189,7 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
   }, [weatherData, temperatureUnit, location, startDate]);
 
   // Data guard for empty localData
-  const effectiveStartDate = startDate || new Date().toISOString().split('T')[0];
+  const effectiveStartDate = startDate || getCurrentDateString();
   const emptyHourly = {
     time: [],
     precipitation: [],

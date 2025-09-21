@@ -2,6 +2,10 @@ import { h } from 'preact';
 
 import { useState, useEffect } from 'preact/hooks';
 
+import { addDays, subDays, startOfWeek, endOfWeek, isSameDay, startOfDay } from 'date-fns';
+
+import { getCurrentDateString, parseDateString, getCurrentTimestamp, createDateFromTimestamp, createDate } from '../utils/dateUtils';
+
 interface DateSelectorProps {
   selectedDate: string;
   onDateChange: (date: string) => void;
@@ -14,14 +18,13 @@ export const DateSelector = ({
   loading = false
 }: DateSelectorProps) => {
   const [showCalendar, setShowCalendar] = useState(false);
-  const today = new Date();
-  const todayString = today.toISOString().split('T')[0];
-  const minDate = new Date('1940-01-01');
-  const maxDate = today;
+  const todayString = getCurrentDateString();
+  const minDate = parseDateString('1940-01-01') || createDate(1940, 0, 1);
+  const maxDate = startOfDay(parseDateString(todayString) || createDateFromTimestamp(getCurrentTimestamp())); // We'll need to keep this for comparison purposes
   
   // Generate calendar days
   const [calendarDays, setCalendarDays] = useState<Date[]>([]);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(startOfDay(parseDateString(todayString) || createDateFromTimestamp(getCurrentTimestamp())));
   
   useEffect(() => {
     generateCalendarDays(currentMonth);
@@ -32,24 +35,21 @@ export const DateSelector = ({
     const month = date.getMonth();
     
     // First day of month
-    const firstDay = new Date(year, month, 1);
+    const firstDay = startOfDay(parseDateString(getCurrentDateString()) || createDate(year, month, 1));
     // Last day of month
-    const lastDay = new Date(year, month + 1, 0);
+    const lastDay = startOfDay(parseDateString(getCurrentDateString()) || createDate(year, month + 1, 0));
     
     // Start from Sunday of the week containing the first day
-    const startDay = new Date(firstDay);
-    startDay.setDate(firstDay.getDate() - firstDay.getDay());
+    const startDay = startOfWeek(firstDay);
     
     // End on Saturday of the week containing the last day
-    const SATURDAY = 6;
-    const endDay = new Date(lastDay);
-    endDay.setDate(lastDay.getDate() + (SATURDAY - lastDay.getDay()));
+    const endDay = endOfWeek(lastDay);
     
     const days: Date[] = [];
-    const current = new Date(startDay);
+    const current = startOfDay(parseDateString(getCurrentDateString()) || createDateFromTimestamp(startDay.getTime()));
     
     while (current <= endDay) {
-      days.push(new Date(current));
+      days.push(startOfDay(parseDateString(getCurrentDateString()) || createDateFromTimestamp(current.getTime())));
       current.setDate(current.getDate() + 1);
     }
     
@@ -57,15 +57,13 @@ export const DateSelector = ({
   };
   
   const handlePrevMonth = () => {
-    const newMonth = new Date(currentMonth);
-    newMonth.setMonth(currentMonth.getMonth() - 1);
-    setCurrentMonth(newMonth);
+    const newMonth = subDays(currentMonth, currentMonth.getDate());
+    setCurrentMonth(createDate(newMonth.getFullYear(), newMonth.getMonth(), 1));
   };
   
   const handleNextMonth = () => {
-    const newMonth = new Date(currentMonth);
-    newMonth.setMonth(currentMonth.getMonth() + 1);
-    setCurrentMonth(newMonth);
+    const newMonth = addDays(currentMonth, 31);
+    setCurrentMonth(createDate(newMonth.getFullYear(), newMonth.getMonth(), 1));
   };
   
   const handleDateSelect = (date: Date) => {
@@ -93,7 +91,8 @@ export const DateSelector = ({
   };
   
   const isToday = (date: Date): boolean => {
-    return date.toISOString().split('T')[0] === todayString;
+    const today = startOfDay(parseDateString(getCurrentDateString()) || createDateFromTimestamp(getCurrentTimestamp()));
+    return isSameDay(date, today);
   };
   
   const isCurrentMonth = (date: Date): boolean => {
@@ -191,7 +190,7 @@ export const DateSelector = ({
       
       {loading && <div class="loading" role="status" aria-live="polite">Updating...</div>}
       <p class="date-hint">
-        Showing weather data for {new Date(selectedDate).toLocaleDateString()}
+        Showing weather data for {selectedDate ? parseDateString(selectedDate)?.toLocaleDateString() || 'Invalid Date' : 'unknown date'}
       </p>
     </div>
   );

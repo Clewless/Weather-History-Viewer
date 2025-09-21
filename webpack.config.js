@@ -62,10 +62,12 @@ export default (env, argv) => {
        ] : [])
      ],
     devServer: {
-       static: './dist/client',
-       hot: true,
-       port: parseInt(process.env.FRONTEND_PORT || '3000')
-     },
+      static: './dist/client',
+      hot: true,
+      port: parseInt(process.env.FRONTEND_PORT || '3000'),
+      open: true,
+      historyApiFallback: true
+    },
      optimization: {
        splitChunks: {
          chunks: 'all',

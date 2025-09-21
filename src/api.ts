@@ -40,11 +40,10 @@ async function apiCall<T>(url: string): Promise<T> {
     }
 
     return await response.json();
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Request timed out. Please try again.');
     }
-    // console.error(`API call failed: ${url}`, error);
     throw error instanceof Error ? error : new Error('Unknown error occurred');
   }
 }

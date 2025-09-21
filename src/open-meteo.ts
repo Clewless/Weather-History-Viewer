@@ -5,6 +5,8 @@ import tzLookup from 'tz-lookup';
 import { APIError, wrapError } from './errors';
 import { validateDateRangeWithErrors, validateCoordinatesWithErrors, validateTimezoneWithErrors } from './utils/validation';
 import { getEnvVar } from './utils/env';
+import { parseAPITimeString } from './utils/dateUtils';
+import { FALLBACK_LOCATION } from './constants';
 
 /**
  * Represents a location found by the Open-Meteo Geocoding API.
@@ -134,7 +136,7 @@ export const searchLocations = async (query: string): Promise<Location[]> => {
     }
 
     return data.results;
-  } catch (error) {
+  } catch (error: unknown) {
     throw wrapError(error, 'Geocoding search failed');
   }
 };
@@ -226,33 +228,33 @@ export const getHistoricalWeather = async (
     const {data} = response;
 
     if (!data.daily || !data.hourly) {
-      throw new Error('Invalid weather response: missing daily or hourly data');
+      throw new APIError('Invalid weather response: missing daily or hourly data', response.status, data);
     }
 
     if (!Array.isArray(data.daily.time) || !Array.isArray(data.hourly.time)) {
-      throw new Error('Invalid weather response: time arrays missing or invalid');
+      throw new APIError('Invalid weather response: time arrays missing or invalid', response.status, data);
     }
 
     // Process time for daily data with validation
     data.daily.time = data.daily.time.map((t: string) => {
-        const date = new Date(t);
-        if (isNaN(date.getTime())) {
-            throw new Error(`Invalid date string in daily data: ${t}`);
+        const date = parseAPITimeString(t);
+        if (!date) {
+            throw new APIError(`Invalid date string in daily data: ${t}`, response.status, data);
         }
         return date;
     });
 
     // Process time for hourly data with validation
     data.hourly.time = data.hourly.time.map((t: string) => {
-        const date = new Date(t);
-        if (isNaN(date.getTime())) {
-            throw new Error(`Invalid date string in hourly data: ${t}`);
+        const date = parseAPITimeString(t);
+        if (!date) {
+            throw new APIError(`Invalid date string in hourly data: ${t}`, response.status, data);
         }
         return date;
     });
 
     return data;
-  } catch (error) {
+  } catch (error: unknown) {
     throw wrapError(error, 'Weather API request failed');
   }
 };
@@ -283,35 +285,35 @@ export const reverseGeocode = async (
 
     // Check if we got a valid response
     if (data.error) {
-      throw new Error(`Reverse geocode API error: ${data.reason}`);
+      throw new APIError(`Reverse geocode API error: ${data.reason}`, response.status, data);
     }
 
     if (!data.results || !Array.isArray(data.results) || data.results.length === 0) {
-      throw new Error('Invalid reverse geocode response: no results found');
+      throw new APIError('Invalid reverse geocode response: no results found', response.status, data);
     }
 
     const result = data.results[0];
     if (!result.latitude || !result.longitude || !result.timezone || !result.name) {
-      throw new Error('Invalid reverse geocode response: missing required location fields');
+      throw new APIError('Invalid reverse geocode response: missing required location fields', response.status, data);
     }
 
     return result;
-  } catch (error) {
+  } catch (error: unknown) {
     // Log the error for debugging purposes
     console.error('Reverse geocoding failed:', error instanceof Error ? error.message : error);
 
     // If reverse geocoding fails, we'll create a fallback location
     // Create a fallback location with detected timezone from coordinates
     const fallbackLocation: Location = {
-      id: 0,
+      id: FALLBACK_LOCATION.ID,
       name: `Location at ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
       latitude,
       longitude,
-      elevation: 0,
-      feature_code: 'PPL',
-      country_code: 'XX',
-      timezone: tzLookup(latitude, longitude) || 'UTC',
-      country: 'Unknown',
+      elevation: FALLBACK_LOCATION.ELEVATION,
+      feature_code: FALLBACK_LOCATION.FEATURE_CODE,
+      country_code: FALLBACK_LOCATION.COUNTRY_CODE,
+      timezone: tzLookup(latitude, longitude) || FALLBACK_LOCATION.TIMEZONE,
+      country: FALLBACK_LOCATION.COUNTRY,
       // Add a flag to indicate this is a fallback location
       isFallback: true as const
     };

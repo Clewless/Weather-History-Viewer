@@ -3,6 +3,7 @@
  */
 
 import { ErrorResponse } from './types';
+import { getCurrentISODate } from './utils/dateUtils';
 
 export class NetworkError extends Error {
   constructor(message: string, public statusCode?: number) {
@@ -78,7 +79,7 @@ export function wrapError(error: unknown, context: string): Error {
 export function createErrorResponse(error: Error, statusCode?: number): ErrorResponse {
   const response: ErrorResponse = {
     error: error.message,
-    timestamp: new Date().toISOString()
+    timestamp: getCurrentISODate()
   };
 
   if (statusCode) {

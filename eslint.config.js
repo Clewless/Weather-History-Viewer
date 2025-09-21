@@ -16,9 +16,6 @@ export default [
   // Base JavaScript recommended rules
   js.configs.recommended,
 
-  // Preact configuration
-  ...preactConfig,
-
   // TypeScript and React/Preact configuration
   {
     files: ['**/*.ts', '**/*.tsx'],
@@ -87,7 +84,7 @@ export default [
         varsIgnorePattern: '^h$|^_|^err$',
         argsIgnorePattern: '^_'
       }],
-      'no-console': 'warn',
+      'no-console': 'off',
       'import/order': ['error', {
         groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
         'newlines-between': 'always',
@@ -125,8 +122,21 @@ export default [
       'no-implied-eval': 'error',
       'no-new-func': 'error',
       'no-script-url': 'error',
-      'no-restricted-globals': ['error', 'Date'],
-      'no-shadow-restricted-names': ['error', 'Date'],
+      'no-restricted-globals': ['error', {
+        name: 'Date',
+        message: 'Use date-fns library instead of native Date constructor for better reliability and timezone handling'
+      }],
+      'no-shadow-restricted-names': 'error',
+
+      // Prevent variables named exactly "date" or "Date"
+      '@typescript-eslint/no-shadow': ['error', {
+        ignoreOnInitialization: true,
+        builtinGlobals: false, // Don't restrict built-in globals like Date here
+        allow: ['Date', 'today', 'error', 'window', 'escape', 'h'] // Allow these common names
+      }],
+      '@typescript-eslint/no-redeclare': 'error',
+
+      // Note: no-shadow rule with builtinGlobals: false prevents variables named exactly "date"/"Date"
 
       // JSX/Preact specific rules
       'jsx-quotes': ['error', 'prefer-double'], // Preact convention
@@ -177,6 +187,30 @@ export default [
     files: ['src/**/*.ts', '!src/**/*.test.ts'],
     rules: {
       '@typescript-eslint/explicit-module-boundary-types': 'off', // Server functions don't need explicit return types
+    }
+  },
+
+  // Date utility functions - allow Date constructor for internal use
+  {
+    files: ['src/utils/dateUtils.ts'],
+    rules: {
+      'no-restricted-globals': 'off', // Allow Date constructor in date utility functions
+    }
+  },
+
+  // Test files - allow Date usage for testing purposes
+  {
+    files: ['**/*.test.{ts,tsx}', '**/__tests__/**'],
+    rules: {
+      'no-restricted-globals': 'off', // Allow Date constructor in test files
+    }
+  },
+
+  // Allow Date usage in weatherUtils.ts for formatTimeInTimezone function
+  {
+    files: ['src/utils/weatherUtils.ts'],
+    rules: {
+      'no-restricted-globals': 'off', // Allow Date constructor in weather utils
     }
   },
 

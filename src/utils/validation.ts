@@ -4,28 +4,15 @@
 
 import { ValidationError } from '../errors';
 
+import { parseDateString, isValidDateString, isValidDateRange as checkDateRange } from './dateUtils';
+
 /**
  * Validates if a date string is in YYYY-MM-DD format and represents a valid date.
  * @param dateStr - Date string in YYYY-MM-DD format
  * @returns True if valid, false otherwise
  */
 export const isValidDate = (dateStr: string): boolean => {
-  // Check basic format first
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateRegex.test(dateStr)) {
-    return false;
-  }
-
-  const date = new Date(`${dateStr  }T00:00:00.000Z`); // Ensure UTC parsing to avoid timezone issues
-  if (isNaN(date.getTime())) {
-    return false;
-  }
-
-  // Verify the date components match (handles February 29th in non-leap years, etc.)
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return date.getUTCFullYear() === year &&
-         date.getUTCMonth() === month - 1 &&
-         date.getUTCDate() === day;
+  return isValidDateString(dateStr);
 };
 
 /**
@@ -35,11 +22,7 @@ export const isValidDate = (dateStr: string): boolean => {
  * @returns True if range is 365 days or less, false otherwise
  */
 export const validateDateRange = (start: string, end: string): boolean => {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  const diffTime = endDate.getTime() - startDate.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays <= 365;
+  return checkDateRange(start, end);
 };
 
 /**
@@ -110,8 +93,12 @@ export const validateDateRangeWithErrors = (start: string, end: string): void =>
     throw new ValidationError('Date range cannot exceed 365 days', 'date_range', { start, end });
   }
 
-  const startDate = new Date(start);
-  const endDate = new Date(end);
+  const startDate = parseDateString(start);
+  const endDate = parseDateString(end);
+
+  if (!startDate || !endDate) {
+    throw new ValidationError('Invalid date format. Please use valid YYYY-MM-DD dates', 'date', { start, end });
+  }
 
   if (startDate > endDate) {
     throw new ValidationError('End date must be after or equal to start date', 'date_order', { start, end });

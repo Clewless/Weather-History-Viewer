@@ -1,5 +1,7 @@
 import cors from 'cors';
 
+import { getEnvVar } from './env';
+
 /**
  * CORS configuration utility for handling multiple environments
  */
@@ -23,6 +25,9 @@ interface CorsConfig {
 export function getCorsConfig(env: string, corsOrigins: string, frontendPort: number = 3000): CorsConfig {
   // Parse origins from environment variable
   const origins = corsOrigins.split(',').map(origin => origin.trim()).filter(origin => origin.length > 0);
+  
+  // Get CORS fallback disabled setting
+  const corsFallbackDisabled = getEnvVar('CORS_FALLBACK_DISABLED') === 'true';
   
   // In development, be more permissive
   if (env === 'development') {
@@ -49,13 +54,23 @@ export function getCorsConfig(env: string, corsOrigins: string, frontendPort: nu
   // In production, be strict
   if (env === 'production') {
     if (origins.length === 0) {
-      // In production, we disable CORS entirely if no origins are specified for security
-      return {
-        origin: false, // Disable CORS entirely if no origins specified
-        methods: ['GET'],
-        credentials: false,
-        maxAge: 86400
-      };
+      // In production, we can either disable CORS entirely or allow all origins based on configuration
+      if (corsFallbackDisabled) {
+        return {
+          origin: false, // Disable CORS entirely if no origins specified and fallback is disabled
+          methods: ['GET'],
+          credentials: false,
+          maxAge: 86400
+        };
+      } else {
+        // Allow all origins as a fallback if not explicitly disabled
+        return {
+          origin: '*',
+          methods: ['GET'],
+          credentials: false,
+          maxAge: 86400
+        };
+      }
     }
     
     return {

@@ -2,8 +2,9 @@ import { h } from 'preact';
 
 import type { JSX } from 'preact/jsx-runtime';
 
-import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
 import { DailyWeatherData, HourlyWeatherData, Location } from '../open-meteo';
+import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
+import { parseDateString } from '../utils/dateUtils';
 
 interface WeatherDisplayProps {
   weatherData?: { daily: DailyWeatherData; hourly: HourlyWeatherData } | null;
@@ -46,7 +47,8 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
   };
 
   const formatDate = (time: Date | string): string => {
-    const date = typeof time === 'string' ? new Date(time) : time;
+    const date = typeof time === 'string' ? parseDateString(time) : time;
+    if (!date) return 'Invalid Date';
     return date.toLocaleDateString([], {
       weekday: 'short',
       month: 'short',
@@ -133,19 +135,20 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
         <h4>Daily Summary</h4>
         <div class="daily-grid" role="grid" aria-label="Daily weather grid">
           {weatherData.daily.time.length > 0 ? weatherData.daily.time.map((time: Date | string, index: number) => {
-            const date = typeof time === 'string' ? new Date(time) : time;
+            const date = typeof time === 'string' ? parseDateString(time) : time;
+            if (!date) return null;
             return (
               <div key={index} class="daily-item" role="gridcell">
                 <div class="daily-date">{formatDate(date)}</div>
-                <div class="daily-icon" aria-label={getWeatherDescription(weatherData.daily.weathercode[index])}>
-                  {getWeatherIcon(weatherData.daily.weathercode[index])}
+                <div class="daily-icon" aria-label={getWeatherDescription(weatherData.daily.weathercode?.[index] ?? 0)}>
+                  {getWeatherIcon(weatherData.daily.weathercode?.[index] ?? 0)}
                 </div>
                 <div class="daily-temp">
-                  {Math.round(convertTemperature(weatherData.daily.temperature_2m_max[index]))}°
-                  /{Math.round(convertTemperature(weatherData.daily.temperature_2m_min[index]))}°
+                  {Math.round(convertTemperature(weatherData.daily.temperature_2m_max?.[index] ?? 0))}°
+                  /{Math.round(convertTemperature(weatherData.daily.temperature_2m_min?.[index] ?? 0))}°
                 </div>
                 <div class="daily-precip">
-                  {weatherData.daily.precipitation_sum[index]}mm
+                  {weatherData.daily.precipitation_sum?.[index] ?? 0}mm
                 </div>
               </div>
             );

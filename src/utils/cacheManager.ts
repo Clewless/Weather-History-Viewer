@@ -2,6 +2,8 @@
  * Cache utility with automatic cleanup for frontend applications
  */
 
+import { getCurrentTimestamp } from './dateUtils';
+
 export interface CacheItem<T> {
   data: T;
   expiry: number;
@@ -39,13 +41,13 @@ export class CacheManager<T> {
     }
     
     // Check if expired
-    if (Date.now() > item.expiry) {
+    if (getCurrentTimestamp() > item.expiry) {
       this.cache.delete(key);
       return null;
     }
-    
+
     // Update last accessed time
-    item.lastAccessed = Date.now();
+    item.lastAccessed = getCurrentTimestamp();
     return item.data;
   }
 
@@ -56,7 +58,7 @@ export class CacheManager<T> {
    * @param ttl - Time to live in milliseconds (optional, uses default if not provided)
    */
   set(key: string, data: T, ttl?: number): void {
-    const expiry = Date.now() + (ttl ?? this.defaultTTL);
+    const expiry = getCurrentTimestamp() + (ttl ?? this.defaultTTL);
     
     // Check if we need to evict items to stay within size limit
     if (this.cache.size >= this.maxSize) {
@@ -66,7 +68,7 @@ export class CacheManager<T> {
     this.cache.set(key, {
       data,
       expiry,
-      lastAccessed: Date.now()
+      lastAccessed: getCurrentTimestamp()
     });
   }
 
@@ -89,7 +91,7 @@ export class CacheManager<T> {
       return false;
     }
     
-    if (Date.now() > item.expiry) {
+    if (getCurrentTimestamp() > item.expiry) {
       this.cache.delete(key);
       return false;
     }
@@ -127,15 +129,15 @@ export class CacheManager<T> {
    */
   cleanup(): number {
     let count = 0;
-    const now = Date.now();
-    
+    const now = getCurrentTimestamp();
+
     for (const [key, item] of this.cache.entries()) {
       if (now > item.expiry) {
         this.cache.delete(key);
         count++;
       }
     }
-    
+
     return count;
   }
 

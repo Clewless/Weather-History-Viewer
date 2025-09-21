@@ -51,21 +51,23 @@ A web application for exploring historical weather data using the Open-Meteo API
    ```
    
    Edit `.env`:
-   - `PORT=3000` - Backend server port (default: 3000)
-   - `CORS_ORIGIN=http://localhost:8080` - Frontend origin for CORS (default: http://localhost:8080)
+   - `PORT=3001` - Backend server port (default: 3001)
+   - `FRONTEND_PORT=3000` - Frontend development server port (default: 3000)
+   - `CORS_ORIGIN=http://localhost:3000` - Frontend origin for CORS (default: http://localhost:3000)
    - `OPEN_METEO_API_KEY=your_open_meteo_api_key_here` - Your Open-Meteo API key (optional but recommended)
    
    For production, also set:
    - `API_BASE_URL=https://your-production-api.com/api` - Frontend API base URL (if deploying separately)
    
    **Environment Variable Details:**
-   - `PORT`: The port on which the backend server will run. Default is 3000.
-   - `CORS_ORIGIN`: The origin URL of the frontend application, used for CORS configuration. 
-     This should match where your frontend is hosted. Default is http://localhost:8080 for development.
-   - `OPEN_METEO_API_KEY`: Optional API key for the Open-Meteo API. Using a key increases rate limits 
+   - `PORT`: The port on which the backend server will run. Default is 3001.
+   - `FRONTEND_PORT`: The port on which the frontend development server will run. Default is 3000.
+   - `CORS_ORIGIN`: The origin URL of the frontend application, used for CORS configuration.
+     This should match where your frontend is hosted. Default is http://localhost:3000 for development.
+   - `OPEN_METEO_API_KEY`: Optional API key for the Open-Meteo API. Using a key increases rate limits
      and is recommended for production use. You can get a free key at [Open-Meteo](https://open-meteo.com/en/docs).
-   - `API_BASE_URL`: Base URL for the backend API when running the frontend separately. 
-     This is used by the frontend to make API requests. Default is http://localhost:3000/api for development.
+   - `API_BASE_URL`: Base URL for the backend API when running the frontend separately.
+     This is used by the frontend to make API requests. Default is http://localhost:3001/api for development.
 
 4. **Run the application**
 
@@ -73,7 +75,7 @@ A web application for exploring historical weather data using the Open-Meteo API
    ```
    npm run start:all
    ```
-   This starts both the backend server (port 3000) and frontend dev server (port 8080).
+   This starts both the backend server (port 3001) and frontend dev server (port 3000).
 
    **Backend only:**
    ```
