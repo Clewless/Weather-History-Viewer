@@ -6,32 +6,8 @@ import { APIError, wrapError } from './errors';
 import { validateDateRangeWithErrors, validateCoordinatesWithErrors, validateTimezoneWithErrors } from './utils/validation';
 import { getEnvVar } from './utils/env';
 import { parseAPITimeString } from './utils/dateUtils';
+import { Location } from './types';
 import { FALLBACK_LOCATION } from './constants';
-
-/**
- * Represents a location found by the Open-Meteo Geocoding API.
- */
-export interface Location {
-  id: number;
-  name: string;
-  latitude: number;
-  longitude: number;
-  elevation: number;
-  feature_code: string;
-  country_code: string;
-  admin1_id?: number;
-  admin2_id?: number;
-  admin3_id?: number;
-  timezone: string;
-  population?: number;
-  postcodes?: string[];
-  country_id?: number;
-  country: string;
-  admin1?: string;
-  admin2?: string;
-  admin3?: string;
-  isFallback?: boolean; // Optional flag to indicate fallback location
-}
 
 /**
  * Core location data required for weather operations

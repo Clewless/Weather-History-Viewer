@@ -32,9 +32,9 @@ export default (env, argv) => {
           test: /\.(ts|tsx)$/,
           exclude: /node_modules/,
           use: {
-            loader: 'ts-loader',
+            loader: 'babel-loader',
             options: {
-              transpileOnly: true
+              cacheDirectory: true
             }
           }
         },
@@ -99,5 +99,6 @@ export default (env, argv) => {
          ],
        } : {}),
      },
+     devtool: isProduction ? 'source-map' : 'eval-source-map',
   };
 };

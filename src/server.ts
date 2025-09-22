@@ -4,7 +4,7 @@ import { config } from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { escape } from 'validator';
 
-import { ValidationError, createErrorResponse } from './errors';
+import { ValidationError, createErrorResponse, NetworkError, wrapError } from './errors';
 import { getEnvVar, validateEnvVars } from './utils/env';
 import { createCorsMiddleware } from './utils/cors';
 import { getStringParam, getNumberParam } from './utils/params';
@@ -14,17 +14,17 @@ import {
   validateSearchQueryWithErrors,
   validateTimezoneWithErrors
 } from './utils/validation';
-import { ServerCacheManager } from './utils/serverCacheManager';
+import { NamespaceCacheManager } from './utils/unifiedCacheManager';
 import {
   searchLocations,
   getHistoricalWeather,
   reverseGeocode,
-  Location as GeoLocation,
   DailyWeatherData,
   HourlyWeatherData
 } from './open-meteo';
+import { Location as GeoLocation } from './types';
 import { getCurrentISODate } from './utils/dateUtils';
-import { CACHE_TTL, RATE_LIMITS, GEOLOCATION_CONFIG, FALLBACK_LOCATION } from './constants';
+import { CACHE_TTL, RATE_LIMITS } from './constants';
 
 // Load environment variables from .env file
 config();
@@ -45,7 +45,17 @@ try {
  */
 
 const app = express();
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000'] : [])],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+      },
+    },
+  })
+);
 
 // Get validated environment variables
 const port = parseInt(getEnvVar('PORT'));
@@ -53,10 +63,11 @@ const frontendPort = parseInt(getEnvVar('FRONTEND_PORT'));
 const corsOrigins = getEnvVar('CORS_ORIGIN');
 const nodeEnv = getEnvVar('NODE_ENV');
 
-// Create cache managers for different API endpoints
-const searchCache = new ServerCacheManager<GeoLocation[]>(CACHE_TTL.SERVER_SEARCH, 500, 5 * 60 * 1000);
-const weatherCache = new ServerCacheManager<{ daily: DailyWeatherData; hourly: HourlyWeatherData }>(CACHE_TTL.SERVER_WEATHER, 200, 10 * 60 * 1000);
-const reverseGeocodeCache = new ServerCacheManager<GeoLocation>(CACHE_TTL.SERVER_REVERSE_GEOCODE, 300, 5 * 60 * 1000);
+// Define the type for the cache data
+type CacheData = GeoLocation[] | { daily: DailyWeatherData; hourly: HourlyWeatherData } | GeoLocation;
+
+// Create a unified cache manager
+const cache = new NamespaceCacheManager<CacheData>(CACHE_TTL.SERVER_DEFAULT, 1000, 5 * 60 * 1000);
 
 // Create CORS middleware with environment-specific configuration
 const corsMiddleware = createCorsMiddleware(nodeEnv, corsOrigins, frontendPort);
@@ -123,8 +134,7 @@ app.get('/api/search', async (req, res) => {
     validateSearchQueryWithErrors(query);
 
     // Check cache first
-    const cacheKey = `search:${query}`;
-    const cachedResult = searchCache.get(cacheKey);
+    const cachedResult = cache.get('search', query);
     if (cachedResult) {
       return res.json(cachedResult);
     }
@@ -135,13 +145,14 @@ app.get('/api/search', async (req, res) => {
     const locations = await searchLocations(sanitizedQuery);
     
     // Cache the result
-    searchCache.set(cacheKey, locations);
+    cache.set('search', query, locations);
     
     res.json(locations);
   } catch (error: unknown) {
+    const wrappedError = wrapError(error, 'Location search failed');
     const errorResponse = createErrorResponse(
-      error instanceof Error ? error : new Error('Unknown error'),
-      error instanceof ValidationError ? 400 : 500
+      wrappedError,
+      wrappedError instanceof ValidationError ? 400 : 500
     );
     res.status(errorResponse.statusCode || 500).json(errorResponse);
   }
@@ -153,20 +164,48 @@ app.get('/api/search', async (req, res) => {
  */
 app.get('/api/weather', async (req, res) => {
   try {
-    // Validate required parameters exist
-    if (!req.query.lat || !req.query.lon || !req.query.start || !req.query.end || !req.query.timezone) {
+    // Extract and validate required parameters in one step
+    const lat = getNumberParam(req.query, 'lat');
+    const lon = getNumberParam(req.query, 'lon');
+    const start = getStringParam(req.query, 'start');
+    const end = getStringParam(req.query, 'end');
+    const timezone = getStringParam(req.query, 'timezone');
+
+    // Validate all parameters exist and are valid
+    if (!lat) {
       return res.status(400).json(createErrorResponse(
-        new ValidationError('Missing required parameters: lat, lon, start, end, timezone'), 
+        new ValidationError('Latitude parameter "lat" is required and must be a valid number', 'lat'),
         400
       ));
     }
     
-    // Extract and validate required parameters
-    const lat = getNumberParam(req.query, 'lat')!;
-    const lon = getNumberParam(req.query, 'lon')!;
-    const start = getStringParam(req.query, 'start')!;
-    const end = getStringParam(req.query, 'end')!;
-    const timezone = getStringParam(req.query, 'timezone')!;
+    if (!lon) {
+      return res.status(400).json(createErrorResponse(
+        new ValidationError('Longitude parameter "lon" is required and must be a valid number', 'lon'),
+        400
+      ));
+    }
+    
+    if (!start) {
+      return res.status(400).json(createErrorResponse(
+        new ValidationError('Start date parameter "start" is required and must be a valid string', 'start'),
+        400
+      ));
+    }
+    
+    if (!end) {
+      return res.status(400).json(createErrorResponse(
+        new ValidationError('End date parameter "end" is required and must be a valid string', 'end'),
+        400
+      ));
+    }
+    
+    if (!timezone) {
+      return res.status(400).json(createErrorResponse(
+        new ValidationError('Timezone parameter "timezone" is required and must be a valid string', 'timezone'),
+        400
+      ));
+    }
 
     // Validate coordinates
     validateCoordinatesWithErrors(lat, lon);
@@ -178,8 +217,8 @@ app.get('/api/weather', async (req, res) => {
     validateDateRangeWithErrors(start, end);
 
     // Check cache first
-    const cacheKey = `weather:${lat}:${lon}:${start}:${end}:${timezone}`;
-    const cachedResult = weatherCache.get(cacheKey);
+    const cacheKey = `${lat}:${lon}:${start}:${end}:${timezone}`;
+    const cachedResult = cache.get('weather', cacheKey);
     if (cachedResult) {
       return res.json(cachedResult);
     }
@@ -191,13 +230,14 @@ app.get('/api/weather', async (req, res) => {
     );
     
     // Cache the result
-    weatherCache.set(cacheKey, weather);
+    cache.set('weather', cacheKey, weather);
     
     res.json(weather);
   } catch (error: unknown) {
+    const wrappedError = wrapError(error, 'Weather data retrieval failed');
     const errorResponse = createErrorResponse(
-      error instanceof Error ? error : new Error('Unknown error'),
-      error instanceof ValidationError ? 400 : 500
+      wrappedError,
+      wrappedError instanceof ValidationError ? 400 : 500
     );
     res.status(errorResponse.statusCode || 500).json(errorResponse);
   }
@@ -225,8 +265,8 @@ app.get('/api/reverse-geocode', async (req, res) => {
     validateCoordinatesWithErrors(lat, lon);
 
     // Check cache first
-    const cacheKey = `reverse:${lat}:${lon}`;
-    const cachedResult = reverseGeocodeCache.get(cacheKey);
+    const cacheKey = `${lat}:${lon}`;
+    const cachedResult = cache.get('reverse', cacheKey);
     if (cachedResult) {
       return res.json(cachedResult);
     }
@@ -234,13 +274,14 @@ app.get('/api/reverse-geocode', async (req, res) => {
     const location: GeoLocation = await reverseGeocode(lat, lon);
     
     // Cache the result
-    reverseGeocodeCache.set(cacheKey, location);
+    cache.set('reverse', cacheKey, location);
     
     res.json(location);
   } catch (error: unknown) {
+    const wrappedError = wrapError(error, 'Reverse geocode failed');
     const errorResponse = createErrorResponse(
-      error instanceof Error ? error : new Error('Unknown error'),
-      error instanceof ValidationError ? 400 : 500
+      wrappedError,
+      wrappedError instanceof ValidationError ? 400 : 500
     );
     res.status(errorResponse.statusCode || 500).json(errorResponse);
   }
@@ -249,18 +290,12 @@ app.get('/api/reverse-geocode', async (req, res) => {
 // Add endpoint to get cache statistics (only in development environment)
 if (nodeEnv === 'development') {
   app.get('/api/cache-stats', (req, res) => {
-    res.json({
-      search: searchCache.getStats(),
-      weather: weatherCache.getStats(),
-      reverse: reverseGeocodeCache.getStats()
-    });
+    res.json(cache.getStats());
   });
   
   // Add endpoint to clear cache (useful for development)
-  app.post('/api/cache-clear', (req, res) => {
-    searchCache.clear();
-    weatherCache.clear();
-    reverseGeocodeCache.clear();
+  app.get('/api/cache-clear', (req, res) => {
+    cache.clear();
     res.json({ message: 'All caches cleared' });
   });
 } else {
@@ -269,7 +304,7 @@ if (nodeEnv === 'development') {
     res.status(404).json({ message: 'Endpoint not available in production' });
   });
   
-  app.post('/api/cache-clear', (req, res) => {
+  app.get('/api/cache-clear', (req, res) => {
     res.status(404).json({ message: 'Endpoint not available in production' });
   });
 }
@@ -277,13 +312,14 @@ if (nodeEnv === 'development') {
 // Centralized error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err.stack);
-  const errorResponse = createErrorResponse(err, 500);
+  const wrappedError = wrapError(err, 'Unhandled server error');
+  const errorResponse = createErrorResponse(wrappedError, 500);
   res.status(500).json(errorResponse);
 });
 
 // 404 handler for undefined routes
 app.use((req, res) => {
-  res.status(404).json(createErrorResponse(new Error('API endpoint not found'), 404));
+  res.status(404).json(createErrorResponse(new NetworkError('API endpoint not found'), 404));
 });
 
 const server = app.listen(port, () => {
@@ -292,27 +328,81 @@ const server = app.listen(port, () => {
   console.log(`CORS origins: ${corsOrigins || 'None specified'}`);
 });
 
-// Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('Shutting down server...');
-  // Stop cache cleanup timers
-  searchCache.stopCleanup();
-  weatherCache.stopCleanup();
-  reverseGeocodeCache.stopCleanup();
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-});
+/**
+ * Graceful shutdown with comprehensive resource cleanup
+ */
+const gracefulShutdown = (signal: string) => {
+  console.log(`\nReceived ${signal}. Starting graceful shutdown...`);
 
-process.on('SIGTERM', () => {
-  console.log('Shutting down server...');
-  // Stop cache cleanup timers
-  searchCache.stopCleanup();
-  weatherCache.stopCleanup();
-  reverseGeocodeCache.stopCleanup();
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
+  // Set a timeout for forced shutdown
+  const shutdownTimeout = setTimeout(() => {
+    console.error('Could not close connections in time, forcefully shutting down');
+    process.exit(1);
+  }, 30000); // 30 seconds timeout
+
+  // Track cleanup completion
+  let cleanupCompleted = false;
+
+  const completeShutdown = () => {
+    if (!cleanupCompleted) {
+      cleanupCompleted = true;
+      clearTimeout(shutdownTimeout);
+      console.log('Graceful shutdown completed');
+      process.exit(0);
+    }
+  };
+
+  // Step 1: Stop accepting new connections
+  server.close((err) => {
+    if (err) {
+      console.error('Error closing server:', err);
+    } else {
+      console.log('Server stopped accepting new connections');
+    }
+
+    // Step 2: Clean up cache and timers
+    try {
+      cache.stopCleanup();
+      console.log('Cache cleanup stopped');
+    } catch (error) {
+      console.error('Error stopping cache cleanup:', error);
+    }
+
+    // Step 3: Clear any remaining intervals or timeouts
+    // This is a safety measure to prevent hanging processes
+    // Note: In a real application, you might want to track specific timers/intervals
+    // and clear them explicitly here
+
+    // Step 4: Force garbage collection if available (for memory cleanup)
+    if (typeof global.gc === 'function') {
+      try {
+        global.gc();
+        console.log('Garbage collection completed');
+      } catch {
+        // GC might not be available in all environments
+      }
+    }
+
+    // Step 5: Small delay to allow any pending operations to complete
+    setTimeout(completeShutdown, 1000);
   });
-});
+
+  // Handle cleanup errors
+  process.on('uncaughtException', (error) => {
+    console.error('Uncaught exception during shutdown:', error);
+    completeShutdown();
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled rejection during shutdown:', reason);
+    completeShutdown();
+  });
+};
+
+// Register graceful shutdown handlers
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// Handle additional shutdown signals for better cross-platform compatibility
+process.on('SIGHUP', () => gracefulShutdown('SIGHUP'));
+process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // Nodemon restart signal

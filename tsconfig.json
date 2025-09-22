@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es2017",
+    "target": "es2020",
     "module": "esnext",
     "outDir": "./dist/client",
     "rootDir": "./src",
@@ -15,7 +15,8 @@
     "noImplicitAny": true,
     "noImplicitThis": true,
     "alwaysStrict": true,
-    "incremental": true
+    "incremental": true,
+    "types": ["preact", "jest"]
   },
   "include": [
     "src/**/*.ts",

@@ -5,7 +5,7 @@ import { useState, useMemo } from 'preact/hooks';
 import debounce from 'lodash/debounce';
 
 import { bffSearchLocations as searchLocations } from '../api';
-import { Location } from '../open-meteo';
+import { Location } from '../types';
 
 interface LocationSearchProps {
   onLocationSelect: (location: Location) => void;
@@ -70,6 +70,7 @@ export const LocationSearch = ({ onLocationSelect, currentLocation }: LocationSe
 
   return (
     <div class="location-search" role="search" aria-label="Location search">
+      <h3>Search Location</h3>
       <input
         type="text"
         class="search-input"
@@ -85,7 +86,10 @@ export const LocationSearch = ({ onLocationSelect, currentLocation }: LocationSe
       {showSuggestions && (
         <div class="search-suggestions" role="listbox" aria-label="Location suggestions">
           {isLoading && (
-            <div class="loading" role="status" aria-live="polite">Searching...</div>
+            <div class="loading" role="status" aria-live="polite">
+              <span class="loading-spinner"></span>
+              Searching...
+            </div>
           )}
           
           {!isLoading && suggestions.length > 0 && (
@@ -97,7 +101,7 @@ export const LocationSearch = ({ onLocationSelect, currentLocation }: LocationSe
                 tabIndex={0}
                 aria-selected="false"
                 onClick={() => handleSuggestionClick(location)}
-                onKeyDown={(e) => {
+                onKeyDown={(e: KeyboardEvent) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     handleSuggestionClick(location);

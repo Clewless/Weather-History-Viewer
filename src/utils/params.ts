@@ -50,8 +50,9 @@ export function getNumberParam(query: Record<string, unknown>, paramName: string
   // Convert to string first if it's not already
   const stringValue = typeof value === 'string' ? value : String(value);
   
-  // Check if it's a valid number
-  if (!/^-?\d+(\.\d+)?$/.test(stringValue)) {
+  // Check if it's a valid number (restrict to prevent scientific notation and very large numbers)
+  // Allow up to 10 digits before decimal and 6 after, no scientific notation
+  if (!/^-?\d{1,10}(\.\d{1,6})?$/.test(stringValue)) {
     throw new ValidationError(`Parameter ${paramName} must be a valid number`, paramName, value);
   }
   

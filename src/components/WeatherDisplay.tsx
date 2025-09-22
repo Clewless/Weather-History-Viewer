@@ -2,7 +2,8 @@ import { h } from 'preact';
 
 import type { JSX } from 'preact/jsx-runtime';
 
-import { DailyWeatherData, HourlyWeatherData, Location } from '../open-meteo';
+import { DailyWeatherData, HourlyWeatherData } from '../open-meteo';
+import { Location } from '../types';
 import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
 import { parseDateString } from '../utils/dateUtils';
 
@@ -16,10 +17,10 @@ interface WeatherDisplayProps {
 
 
 export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTemperatureUnitChange, error }: WeatherDisplayProps): JSX.Element => {
-  if (error) {
+  if (error != null) {
     return (
       <div class="weather-info">
-        <div class="error-message" style={{ color: 'red', padding: '10px' }}>
+        <div class="error-message error">
           {error}
         </div>
       </div>

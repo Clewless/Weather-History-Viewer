@@ -2,10 +2,6 @@ import { h } from 'preact';
 
 import { useState, useCallback } from 'preact/hooks';
 
-import { startOfDay } from 'date-fns';
-
-import { getCurrentDateString, parseDateString, getCurrentTimestamp, createDateFromTimestamp } from '../utils/dateUtils';
-
 interface ErrorState {
   message: string;
   type: 'error' | 'warning' | 'info';
@@ -20,7 +16,7 @@ export const useErrorHandler = () => {
     setError({
       message,
       type,
-      timestamp: startOfDay(parseDateString(getCurrentDateString()) || createDateFromTimestamp(getCurrentTimestamp())) // Create Date object from timestamp
+      timestamp: new Date()
     });
   }, []);
 

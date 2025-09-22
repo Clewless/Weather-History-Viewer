@@ -122,10 +122,6 @@ export default [
       'no-implied-eval': 'error',
       'no-new-func': 'error',
       'no-script-url': 'error',
-      'no-restricted-globals': ['error', {
-        name: 'Date',
-        message: 'Use date-fns library instead of native Date constructor for better reliability and timezone handling'
-      }],
       'no-shadow-restricted-names': 'error',
 
       // Prevent variables named exactly "date" or "Date"
@@ -161,9 +157,9 @@ export default [
     },
   },
 
-  // Webpack configuration (Node.js environment)
+  // Configuration files (Node.js environment)
   {
-    files: ['webpack.config.js'],
+    files: ['*.config.js', '*.config.cjs', 'webpack.config.js'],
     languageOptions: {
       globals: {
         process: 'readonly',
@@ -179,6 +175,7 @@ export default [
     rules: {
       'no-console': 'off', // Allow console in build tools
       '@typescript-eslint/no-var-requires': 'off',
+      'no-useless-escape': 'off', // Allow necessary regex escapes in config files
     }
   },
 
@@ -190,29 +187,6 @@ export default [
     }
   },
 
-  // Date utility functions - allow Date constructor for internal use
-  {
-    files: ['src/utils/dateUtils.ts'],
-    rules: {
-      'no-restricted-globals': 'off', // Allow Date constructor in date utility functions
-    }
-  },
-
-  // Test files - allow Date usage for testing purposes
-  {
-    files: ['**/*.test.{ts,tsx}', '**/__tests__/**'],
-    rules: {
-      'no-restricted-globals': 'off', // Allow Date constructor in test files
-    }
-  },
-
-  // Allow Date usage in weatherUtils.ts for formatTimeInTimezone function
-  {
-    files: ['src/utils/weatherUtils.ts'],
-    rules: {
-      'no-restricted-globals': 'off', // Allow Date constructor in weather utils
-    }
-  },
 
   // Test files (Jest environment)
   {

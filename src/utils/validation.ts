@@ -1,10 +1,12 @@
 /**
- * Shared validation utilities for use across the application
+ * Enhanced validation utilities with sanitization for use across the application
  */
+
+import { escape } from 'validator';
 
 import { ValidationError } from '../errors';
 
-import { parseDateString, isValidDateString, isValidDateRange as checkDateRange } from './dateUtils';
+import { parseDateString, isValidDateString, isValidDateRange } from './dateUtils';
 
 /**
  * Validates if a date string is in YYYY-MM-DD format and represents a valid date.
@@ -13,16 +15,6 @@ import { parseDateString, isValidDateString, isValidDateRange as checkDateRange 
  */
 export const isValidDate = (dateStr: string): boolean => {
   return isValidDateString(dateStr);
-};
-
-/**
- * Validates that the date range does not exceed 365 days.
- * @param start - Start date string
- * @param end - End date string
- * @returns True if range is 365 days or less, false otherwise
- */
-export const validateDateRange = (start: string, end: string): boolean => {
-  return checkDateRange(start, end);
 };
 
 /**
@@ -36,11 +28,11 @@ export const validateLatLng = (lat: number, lng: number): boolean => {
 };
 
 /**
- * Validates search query for location searches.
+ * Validates and sanitizes search query for location searches.
  * @param query - Search query string
- * @returns True if valid, false otherwise
+ * @returns Sanitized query string if valid, false otherwise
  */
-export const validateSearchQuery = (query: string): boolean => {
+export const validateAndSanitizeSearchQuery = (query: string): string | false => {
   if (!query || typeof query !== 'string') {
     return false;
   }
@@ -57,7 +49,8 @@ export const validateSearchQuery = (query: string): boolean => {
     return false;
   }
 
-  return true;
+  // Sanitize the query to prevent XSS
+  return escape(trimmed);
 };
 
 /**
@@ -79,6 +72,84 @@ export const validateTimezone = (timezone: string): boolean => {
 };
 
 /**
+ * Validates and sanitizes a date range including format, range limits, and order.
+ * @param start - Start date string
+ * @param end - End date string
+ * @returns Sanitized date strings if valid, false otherwise
+ */
+export const validateAndSanitizeDateRange = (start: string, end: string): {start: string, end: string} | false => {
+  // Sanitize inputs
+  const sanitizedStart = escape(start);
+  const sanitizedEnd = escape(end);
+
+  if (!isValidDate(sanitizedStart) || !isValidDate(sanitizedEnd)) {
+    return false;
+  }
+
+  if (!isValidDateRange(sanitizedStart, sanitizedEnd)) {
+    return false;
+  }
+
+  const startDate = parseDateString(sanitizedStart);
+  const endDate = parseDateString(sanitizedEnd);
+
+  if (!startDate || !endDate) {
+    return false;
+  }
+
+  if (startDate > endDate) {
+    return false;
+  }
+
+  return { start: sanitizedStart, end: sanitizedEnd };
+};
+
+/**
+ * Validates and sanitizes coordinates.
+ * @param lat - Latitude value
+ * @param lng - Longitude value
+ * @returns True if valid, false otherwise
+ */
+export const validateAndSanitizeCoordinates = (lat: unknown, lng: unknown): {lat: number, lng: number} | false => {
+  // Convert to numbers if they're strings
+  const latitude = typeof lat === 'string' ? parseFloat(lat) : lat;
+  const longitude = typeof lng === 'string' ? parseFloat(lng) : lng;
+
+  // Check if they're valid numbers
+  if (typeof latitude !== 'number' || isNaN(latitude) ||
+      typeof longitude !== 'number' || isNaN(longitude)) {
+    return false;
+  }
+
+  // Validate the ranges
+  if (!validateLatLng(latitude, longitude)) {
+    return false;
+  }
+
+  return { lat: latitude, lng: longitude };
+};
+
+/**
+ * Validates and sanitizes timezone string.
+ * @param timezone - Timezone string
+ * @returns Sanitized timezone string if valid, false otherwise
+ */
+export const validateAndSanitizeTimezone = (timezone: string): string | false => {
+  if (!timezone || typeof timezone !== 'string') {
+    return false;
+  }
+
+  // Sanitize the timezone string
+  const sanitized = escape(timezone);
+
+  if (!validateTimezone(sanitized)) {
+    return false;
+  }
+
+  return sanitized;
+};
+
+/**
  * Validates a date range including format, range limits, and order.
  * @param start - Start date string
  * @param end - End date string
@@ -89,7 +160,7 @@ export const validateDateRangeWithErrors = (start: string, end: string): void =>
     throw new ValidationError('Invalid date format. Please use valid YYYY-MM-DD dates', 'date', { start, end });
   }
 
-  if (!validateDateRange(start, end)) {
+  if (!isValidDateRange(start, end)) {
     throw new ValidationError('Date range cannot exceed 365 days', 'date_range', { start, end });
   }
 
@@ -123,7 +194,7 @@ export const validateCoordinatesWithErrors = (lat: number, lng: number): void =>
  * @throws ValidationError if validation fails
  */
 export const validateSearchQueryWithErrors = (query: string): void => {
-  if (!validateSearchQuery(query)) {
+  if (!validateAndSanitizeSearchQuery(query)) {
     throw new ValidationError('Invalid search query format or length', 'query', query);
   }
 };

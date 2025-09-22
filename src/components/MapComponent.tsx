@@ -152,7 +152,7 @@ export const MapComponent = ({ latitude, longitude, onLocationSelect }: MapProps
         width: '100%',
         minHeight: `${MIN_MAP_HEIGHT}px`,
         position: 'relative',
-        border: '1px solid #ddd',
+        border: '1px solid var(--gray-300)',
         borderRadius: `${MAP_BORDER_RADIUS}px`,
         overflow: 'hidden',
         background: '#e8f4f8'
@@ -191,7 +191,7 @@ export const MapComponent = ({ latitude, longitude, onLocationSelect }: MapProps
             transform: 'translate(-50%, -100%)',
             width: `${MARKER_SIZE}px`,
             height: `${MARKER_SIZE}px`,
-            backgroundColor: 'red',
+            backgroundColor: 'var(--danger)',
             borderRadius: '50%',
             border: `${MARKER_BORDER_WIDTH}px solid white`,
             boxShadow: '0 0 5px rgba(0,0,0,0.5)'

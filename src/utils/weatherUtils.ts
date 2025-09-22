@@ -1,7 +1,8 @@
 import { addDays } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
-import { HourlyWeatherData, Location } from '../open-meteo';
+import { HourlyWeatherData } from '../open-meteo';
+import { Location } from '../types';
 
 import { formatTimeInTimezone, parseDateString } from './dateUtils';
 
@@ -59,5 +60,10 @@ export const getLocalDayHours = (hourly: HourlyWeatherData, location: Location, 
 };
 
 export const formatLocalTime = (time: string, timezone: string): string => {
-  return formatTimeInTimezone(time, timezone);
+  try {
+    return formatTimeInTimezone(time, timezone);
+  } catch (error) {
+    console.warn('Failed to format time for timezone:', timezone, error);
+    return '00:00';
+  }
 };

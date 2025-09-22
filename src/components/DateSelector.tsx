@@ -2,9 +2,20 @@ import { h } from 'preact';
 
 import { useState, useEffect } from 'preact/hooks';
 
-import { addDays, subDays, startOfWeek, endOfWeek, isSameDay, startOfDay } from 'date-fns';
-
-import { getCurrentDateString, parseDateString, getCurrentTimestamp, createDateFromTimestamp, createDate } from '../utils/dateUtils';
+import {
+  safeParseDate,
+  getCurrentDate,
+  getMinDate,
+  getMaxDate,
+  generateCalendarDays,
+  getPreviousMonth,
+  getNextMonth,
+  isToday,
+  isCurrentMonth,
+  formatDateForDisplay,
+  formatDateForInput,
+  getMonthName
+} from '../utils/dateUtils';
 
 interface DateSelectorProps {
   selectedDate: string;
@@ -18,52 +29,24 @@ export const DateSelector = ({
   loading = false
 }: DateSelectorProps) => {
   const [showCalendar, setShowCalendar] = useState(false);
-  const todayString = getCurrentDateString();
-  const minDate = parseDateString('1940-01-01') || createDate(1940, 0, 1);
-  const maxDate = startOfDay(parseDateString(todayString) || createDateFromTimestamp(getCurrentTimestamp())); // We'll need to keep this for comparison purposes
-  
+  const minDate = getMinDate();
+  const maxDate = getMaxDate();
+  const todayString = formatDateForInput(getMaxDate());
+
   // Generate calendar days
   const [calendarDays, setCalendarDays] = useState<Date[]>([]);
-  const [currentMonth, setCurrentMonth] = useState(startOfDay(parseDateString(todayString) || createDateFromTimestamp(getCurrentTimestamp())));
+  const [currentMonth, setCurrentMonth] = useState(getCurrentDate());
   
   useEffect(() => {
-    generateCalendarDays(currentMonth);
+    setCalendarDays(generateCalendarDays(currentMonth));
   }, [currentMonth]);
   
-  const generateCalendarDays = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    
-    // First day of month
-    const firstDay = startOfDay(parseDateString(getCurrentDateString()) || createDate(year, month, 1));
-    // Last day of month
-    const lastDay = startOfDay(parseDateString(getCurrentDateString()) || createDate(year, month + 1, 0));
-    
-    // Start from Sunday of the week containing the first day
-    const startDay = startOfWeek(firstDay);
-    
-    // End on Saturday of the week containing the last day
-    const endDay = endOfWeek(lastDay);
-    
-    const days: Date[] = [];
-    const current = startOfDay(parseDateString(getCurrentDateString()) || createDateFromTimestamp(startDay.getTime()));
-    
-    while (current <= endDay) {
-      days.push(startOfDay(parseDateString(getCurrentDateString()) || createDateFromTimestamp(current.getTime())));
-      current.setDate(current.getDate() + 1);
-    }
-    
-    setCalendarDays(days);
-  };
-  
   const handlePrevMonth = () => {
-    const newMonth = subDays(currentMonth, currentMonth.getDate());
-    setCurrentMonth(createDate(newMonth.getFullYear(), newMonth.getMonth(), 1));
+    setCurrentMonth(getPreviousMonth(currentMonth));
   };
-  
+
   const handleNextMonth = () => {
-    const newMonth = addDays(currentMonth, 31);
-    setCurrentMonth(createDate(newMonth.getFullYear(), newMonth.getMonth(), 1));
+    setCurrentMonth(getNextMonth(currentMonth));
   };
   
   const handleDateSelect = (date: Date) => {
@@ -74,30 +57,8 @@ export const DateSelector = ({
     setShowCalendar(false);
   };
   
-  const formatDate = (date: Date): string => {
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-  
-  const getMonthName = (date: Date): string => {
-    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  };
-  
   const isSelectedDate = (date: Date): boolean => {
-    return date.toISOString().split('T')[0] === selectedDate;
-  };
-  
-  const isToday = (date: Date): boolean => {
-    const today = startOfDay(parseDateString(getCurrentDateString()) || createDateFromTimestamp(getCurrentTimestamp()));
-    return isSameDay(date, today);
-  };
-  
-  const isCurrentMonth = (date: Date): boolean => {
-    return date.getMonth() === currentMonth.getMonth() &&
-           date.getFullYear() === currentMonth.getFullYear();
+    return formatDateForInput(date) === selectedDate;
   };
 
   return (
@@ -114,7 +75,7 @@ export const DateSelector = ({
           min={minDate.toISOString().split('T')[0]}
           max={todayString}
           disabled={loading}
-          onChange={(e) => onDateChange(e.currentTarget.value)}
+          onChange={(e: Event) => onDateChange((e.target as HTMLInputElement).value)}
           aria-label="Selected date"
         />
         <button
@@ -164,10 +125,10 @@ export const DateSelector = ({
               <button
                 key={index}
                 type="button"
-                class={`calendar-day ${!isCurrentMonth(date) ? 'other-month' : ''} ${isSelectedDate(date) ? 'selected' : ''} ${isToday(date) ? 'today' : ''}`}
+                class={`calendar-day ${!isCurrentMonth(date, currentMonth) ? 'other-month' : ''} ${isSelectedDate(date) ? 'selected' : ''} ${isToday(date) ? 'today' : ''}`}
                 onClick={() => handleDateSelect(date)}
                 disabled={date < minDate || date > maxDate || loading}
-                aria-label={formatDate(date)}
+                aria-label={formatDateForDisplay(date)}
                 aria-pressed={isSelectedDate(date)}
               >
                 {date.getDate()}
@@ -188,9 +149,14 @@ export const DateSelector = ({
         </div>
       )}
       
-      {loading && <div class="loading" role="status" aria-live="polite">Updating...</div>}
+      {loading && (
+        <div class="loading" role="status" aria-live="polite">
+          <span class="loading-spinner"></span>
+          Updating...
+        </div>
+      )}
       <p class="date-hint">
-        Showing weather data for {selectedDate ? parseDateString(selectedDate)?.toLocaleDateString() || 'Invalid Date' : 'unknown date'}
+        Showing weather data for {selectedDate ? safeParseDate(selectedDate)?.toLocaleDateString() || 'Invalid Date' : 'unknown date'}
       </p>
     </div>
   );

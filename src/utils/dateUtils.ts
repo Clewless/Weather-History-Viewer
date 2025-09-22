@@ -5,6 +5,12 @@ import {
   getMonth,
   getDate,
   getYear,
+  startOfDay,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  subDays,
+  isSameDay,
 } from 'date-fns';
 import { formatInTimeZone as formatInTimeZoneTz } from 'date-fns-tz';
 
@@ -27,7 +33,8 @@ export const parseDateString = (dateStr: string): Date | null => {
     const dateTimeStr = dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00.000Z`;
     const date = new Date(dateTimeStr);
     return isNaN(date.getTime()) ? null : date;
-  } catch {
+  } catch (error) {
+    console.warn('Failed to parse date string:', dateStr, error);
     return null;
   }
 };
@@ -119,7 +126,8 @@ export const formatTimeInTimezone = (time: string, timezone: string): string => 
  * @returns Current date in YYYY-MM-DD format
  */
 export const getCurrentDateString = (): string => {
-  return new Date().toISOString().split('T')[0];
+  const now = new Date();
+  return now.toISOString().split('T')[0];
 };
 
 /**
@@ -195,4 +203,160 @@ export const createDateFromString = (dateStr: string): Date => {
  */
 export const createDate = (year: number, month: number, date: number): Date => {
   return new Date(year, month, date);
+};
+
+/**
+ * Safely parse a date string and return a Date object with fallbacks
+ * This function provides consistent date creation across the application
+ * @param dateStr - Date string in YYYY-MM-DD format
+ * @param fallbackTimestamp - Optional fallback timestamp if parsing fails
+ * @returns Date object or null if all parsing fails
+ */
+export const safeParseDate = (dateStr: string, fallbackTimestamp?: number): Date | null => {
+  try {
+    const parsed = parseDateString(dateStr);
+    if (parsed) {
+      return startOfDay(parsed);
+    }
+
+    if (fallbackTimestamp) {
+      return startOfDay(createDateFromTimestamp(fallbackTimestamp));
+    }
+
+    return null;
+  } catch {
+    return fallbackTimestamp ? startOfDay(createDateFromTimestamp(fallbackTimestamp)) : null;
+  }
+};
+
+/**
+ * Get current date as start of day
+ * @returns Current date at start of day
+ */
+export const getCurrentDate = (): Date => {
+  const now = createCurrentDate();
+  return startOfDay(now);
+};
+
+/**
+ * Get minimum allowed date (Jan 1, 1940)
+ * @returns Date object for minimum allowed date
+ */
+export const getMinDate = (): Date => {
+  const minDate = createDate(1940, 0, 1);
+  return startOfDay(minDate);
+};
+
+/**
+ * Get maximum allowed date (today)
+ * @returns Date object for maximum allowed date (today)
+ */
+export const getMaxDate = (): Date => {
+  return getCurrentDate();
+};
+
+/**
+ * Generate calendar days for a given month
+ * @param currentMonth - Date object representing the month to generate
+ * @returns Array of Date objects for calendar display
+ */
+export const generateCalendarDays = (currentMonth: Date): Date[] => {
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+
+  // First day of month
+  const firstDayDate = createDate(year, month, 1);
+  const firstDay = startOfDay(firstDayDate);
+
+  // Last day of month
+  const lastDayDate = createDate(year, month + 1, 0);
+  const lastDay = startOfDay(lastDayDate);
+
+  // Start from Sunday of the week containing the first day
+  const startDay = startOfWeek(firstDay);
+
+  // End on Saturday of the week containing the last day
+  const endDay = endOfWeek(lastDay);
+
+  const days: Date[] = [];
+  const startDayTime = startDay.getTime();
+  let current = startOfDay(createDateFromTimestamp(startDayTime));
+
+  while (current <= endDay) {
+    days.push(current);
+    current = addDays(current, 1);
+  }
+
+  return days;
+};
+
+/**
+ * Navigate to previous month
+ * @param currentMonth - Current month date
+ * @returns New date object for the first day of previous month
+ */
+export const getPreviousMonth = (currentMonth: Date): Date => {
+  const newMonth = subDays(currentMonth, currentMonth.getDate());
+  return startOfDay(createDate(newMonth.getFullYear(), newMonth.getMonth(), 1));
+};
+
+/**
+ * Navigate to next month
+ * @param currentMonth - Current month date
+ * @returns New date object for the first day of next month
+ */
+export const getNextMonth = (currentMonth: Date): Date => {
+  const newMonth = addDays(currentMonth, 31);
+  return startOfDay(createDate(newMonth.getFullYear(), newMonth.getMonth(), 1));
+};
+
+/**
+ * Check if a date is today
+ * @param date - Date to check
+ * @returns True if the date is today
+ */
+export const isToday = (date: Date): boolean => {
+  return isSameDay(date, getCurrentDate());
+};
+
+/**
+ * Check if a date is in the current month
+ * @param date - Date to check
+ * @param currentMonth - Current month to compare against
+ * @returns True if the date is in the current month
+ */
+export const isCurrentMonth = (date: Date, currentMonth: Date): boolean => {
+  return date.getMonth() === currentMonth.getMonth() &&
+         date.getFullYear() === currentMonth.getFullYear();
+};
+
+/**
+ * Format date for display
+ * @param date - Date to format
+ * @returns Formatted date string
+ */
+export const formatDateForDisplay = (date: Date): string => {
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+};
+
+/**
+ * Format date for input fields
+ * @param date - Date to format
+ * @returns Date string in YYYY-MM-DD format
+ */
+export const formatDateForInput = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+/**
+ * Get month name and year for display
+ * @param date - Date to format
+ * @returns Formatted month and year string
+ */
+export const getMonthName = (date: Date): string => {
+  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 };

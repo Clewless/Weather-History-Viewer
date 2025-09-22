@@ -3,7 +3,8 @@ import { h } from 'preact';
 import type { JSX } from 'preact/jsx-runtime';
 import { useEffect, useRef } from 'preact/hooks';
 
-import { DailyWeatherData, HourlyWeatherData, Location } from '../open-meteo';
+import { DailyWeatherData, HourlyWeatherData } from '../open-meteo';
+import { Location } from '../types';
 import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
 import { getCurrentDateString } from '../utils/dateUtils';
 
@@ -48,9 +49,13 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
 
     const effectiveStartDate = startDate || getCurrentDateString();
     const localData = getLocalDayHours(weatherData.hourly, location, effectiveStartDate);
-    const temperatures = localData.temps.map((temp: number) => 
+    const temperatures = localData.temps.map((temp: number) =>
       temperatureUnit === 'F' ? (temp * FAHRENHEIT_CONVERSION_FACTOR) + FAHRENHEIT_CONVERSION_OFFSET : temp
     );
+
+    if (temperatures.length === 0) {
+      return;
+    }
 
     // Find min and max temperatures
     const maxTemp = Math.max(...temperatures);
@@ -152,7 +157,17 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
     cloudcover: [],
   } as unknown as HourlyWeatherData;
   const hourlyData = weatherData?.hourly || emptyHourly;
-  const localData = getLocalDayHours(hourlyData, location || { timezone: 'UTC' } as unknown as Location, effectiveStartDate);
+  const localData = getLocalDayHours(hourlyData, location || {
+    id: 0,
+    name: 'Unknown Location',
+    latitude: 0,
+    longitude: 0,
+    elevation: 0,
+    feature_code: 'PPL',
+    country_code: 'XX',
+    timezone: 'UTC',
+    country: 'Unknown'
+  } as Location, effectiveStartDate);
   if (localData.temps.length === 0 && weatherData && location) {
     return (
       <div class="chart-container">

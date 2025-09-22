@@ -3,7 +3,8 @@ import { h } from 'preact';
 import type { JSX } from 'preact/jsx-runtime';
 import { useEffect, useRef } from 'preact/hooks';
 
-import { DailyWeatherData, HourlyWeatherData, Location } from '../open-meteo';
+import { DailyWeatherData, HourlyWeatherData } from '../open-meteo';
+import { Location } from '../types';
 import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
 import { getCurrentDateString } from '../utils/dateUtils';
 

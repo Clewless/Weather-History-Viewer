@@ -1,6 +1,6 @@
 
 import { h } from 'preact';
-  
+
 import { render, screen, fireEvent } from '@testing-library/preact';
 
 import { bffSearchLocations, bffGetWeather, bffReverseGeocode } from '../api';
@@ -43,7 +43,21 @@ describe('App', () => {
 
   it('should handle date changes', async () => {
     const mockLocations = [{ id: 1, name: 'New York', latitude: 40.71, longitude: -74.01, timezone: 'America/New_York' }];
-    const mockWeather = { daily: { time: [new Date()] }, hourly: { time: [new Date()] } };
+    const mockWeather = {
+      daily: {
+        time: ['2023-01-01'],
+        temperature_2m_max: [20.5],
+        temperature_2m_min: [15.2],
+        precipitation_sum: [0.5]
+      },
+      hourly: {
+        time: ['2023-01-01T00:00', '2023-01-01T01:00'],
+        temperature_2m: [18.5, 19.2],
+        precipitation: [0, 0.1],
+        weathercode: [1, 2],
+        cloudcover: [20, 30]
+      }
+    };
     (bffSearchLocations as jest.Mock).mockResolvedValue(mockLocations);
     (bffGetWeather as jest.Mock).mockResolvedValue(mockWeather);
 

@@ -1,13 +1,13 @@
-import { h, Component, render } from 'preact';
+import { h } from 'preact';
 
-import { useState, useEffect, useCallback, useMemo } from 'preact/hooks';
+import { useState, useEffect, useCallback, useRef } from 'preact/hooks';
 
-import { startOfDay } from 'date-fns';
 
-import { bffSearchLocations, bffGetWeather, bffReverseGeocode } from '../api';
-import { Location, DailyWeatherData, HourlyWeatherData } from '../open-meteo';
-import { CacheManager } from '../utils/cacheManager';
-import { getCurrentDateString, parseDateString, getCurrentTimestamp, createDateFromTimestamp } from '../utils/dateUtils';
+import { bffGetWeather, bffReverseGeocode } from '../api';
+import { Location } from '../types';
+import { DailyWeatherData, HourlyWeatherData } from '../open-meteo';
+import { NamespaceCacheManager } from '../utils/unifiedCacheManager';
+import { getCurrentDateString, parseDateString } from '../utils/dateUtils';
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, CACHE_TTL } from '../constants';
 
 import { MapComponent } from './MapComponent';
@@ -36,37 +36,54 @@ const App = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const { error, handleError, clearError } = useErrorHandler();
 
-  // Create cache managers with different TTLs for different data types using useMemo
-  const searchCache = useMemo(() => new CacheManager<Location[]>(CACHE_TTL.SEARCH), []);
-  const weatherCache = useMemo(() => new CacheManager<WeatherData>(CACHE_TTL.WEATHER), []);
-  const reverseGeocodeCache = useMemo(() => new CacheManager<Location>(CACHE_TTL.REVERSE_GEOCODE), []);
+  // Use refs to track cache managers for proper cleanup
+  const searchCacheRef = useRef<NamespaceCacheManager<Location[]>>(new NamespaceCacheManager<Location[]>(CACHE_TTL.SEARCH, 1000, 60 * 1000));
+  const weatherCacheRef = useRef<NamespaceCacheManager<WeatherData>>(new NamespaceCacheManager<WeatherData>(CACHE_TTL.WEATHER, 1000, 60 * 1000));
+  const reverseGeocodeCacheRef = useRef<NamespaceCacheManager<Location>>(new NamespaceCacheManager<Location>(CACHE_TTL.REVERSE_GEOCODE, 1000, 60 * 1000));
 
-  const getCacheKey = useCallback((fnName: string, ...args: unknown[]) => `${fnName}:${JSON.stringify(args)}`, []);
+  // Create cache managers with different TTLs for different data types
+  const _searchCache = searchCacheRef.current;
+  const weatherCache = weatherCacheRef.current;
+  const reverseGeocodeCache = reverseGeocodeCacheRef.current;
 
-  const cachedSearchLocations = useCallback(async (query: string): Promise<Location[]> => {
-    const key = getCacheKey('searchLocations', query);
-    const cached = searchCache.get(key);
-    if (cached) return cached;
-    const data = await bffSearchLocations(query);
-    searchCache.set(key, data);
-    return data;
-  }, [searchCache, getCacheKey]);
+  const getCacheKey = useCallback((fnName: string, ...args: unknown[]) => {
+    // Create a more reliable cache key by handling different argument types
+    const stringifiedArgs = args.map(arg => {
+      if (typeof arg === 'string' || typeof arg === 'number' || typeof arg === 'boolean') {
+        return String(arg);
+      }
+      if (arg === null || arg === undefined) {
+        return 'null';
+      }
+      // For objects, create a deterministic string representation
+      try {
+        return JSON.stringify(Object.keys(arg).sort().reduce((obj: Record<string, unknown>, key: string) => {
+          obj[key] = (arg as Record<string, unknown>)[key];
+          return obj;
+        }, {} as Record<string, unknown>));
+      } catch {
+        return 'complex-object';
+      }
+    });
+    return `${fnName}:${stringifiedArgs.join(':')}`;
+  }, []);
+
 
   const cachedGetWeather = useCallback(async (location: Location, start: string, end: string): Promise<WeatherData> => {
     const key = getCacheKey('getWeather', location.latitude, location.longitude, start, end);
-    const cached = weatherCache.get(key);
+    const cached = weatherCache.get('weather', key);
     if (cached) return cached;
     const data = await bffGetWeather(location, start, end);
-    weatherCache.set(key, data);
+    weatherCache.set('weather', key, data);
     return data;
   }, [weatherCache, getCacheKey]);
 
   const cachedReverseGeocode = useCallback(async (lat: number, lng: number): Promise<Location> => {
     const key = getCacheKey('reverseGeocode', lat, lng);
-    const cached = reverseGeocodeCache.get(key);
+    const cached = reverseGeocodeCache.get('reverse-geocode', key);
     if (cached) return cached;
     const data = await bffReverseGeocode(lat, lng);
-    reverseGeocodeCache.set(key, data);
+    reverseGeocodeCache.set('reverse-geocode', key, data);
     return data;
   }, [reverseGeocodeCache, getCacheKey]);
 
@@ -185,25 +202,23 @@ const App = () => {
       return false;
     }
     
-    // More robust date validation
-    const parsedDate = parseDateString(date); // Use dateUtils function
-    
-    // Check if the date is valid
+    // Parse and validate date
+    const parsedDate = parseDateString(date);
     if (!parsedDate) {
       handleError('Invalid date provided');
       return false;
     }
     
-    // Check if date is in the future
-    const todayString = getCurrentDateString();
-    const todayDate = parseDateString(todayString);
-    if (!todayDate) {
-      handleError('Unable to determine current date');
+    // Check if date is before 1940 (Open-Meteo historical data starts ~1940)
+    const minHistoricalDate = new Date(1940, 0, 1);
+    if (parsedDate < minHistoricalDate) {
+      handleError('Historical weather data available from 1940 onwards');
       return false;
     }
-    const today = startOfDay(todayDate);
-    parsedDate.setHours(0, 0, 0, 0);
-
+    
+    // Check if date is in the future
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     if (parsedDate > today) {
       handleError('Selected date cannot be in the future');
       return false;
@@ -224,34 +239,22 @@ const App = () => {
 
   useEffect(() => {
     // Load default location without geolocation
-    const controller = new AbortController();
-    const loadDefaultLocation = async () => {
-      setIsLoading(true);
-      clearError();
-      
-      // Use hardcoded default location (New York) to avoid API dependency on startup
-      const defaultLocation: Location = {
-        id: 5128581,
-        name: 'New York',
-        latitude: DEFAULT_LATITUDE,
-        longitude: DEFAULT_LONGITUDE,
-        elevation: 10,
-        feature_code: 'PPL',
-        country_code: 'US',
-        timezone: 'America/New_York',
-        country: 'United States'
-      };
-      
-      setCurrentLocation(defaultLocation);
-      handleError('Using default location: New York', 'info');
-      // Initial fetch with selected date
-      fetchWeatherData(defaultLocation, selectedDate, selectedDate);
-      setIsLoading(false);
+    const defaultLocation: Location = {
+      id: 5128581,
+      name: 'New York',
+      latitude: DEFAULT_LATITUDE,
+      longitude: DEFAULT_LONGITUDE,
+      elevation: 10,
+      feature_code: 'PPL',
+      country_code: 'US',
+      timezone: 'America/New_York',
+      country: 'United States'
     };
-
-    loadDefaultLocation();
-    return () => controller.abort();
-  }, [cachedSearchLocations, fetchWeatherData, setIsLoading, clearError, handleError, selectedDate, setCurrentLocation]);
+  
+    setIsLoading(true);
+    setCurrentLocation(defaultLocation);
+    handleError('Using default location: New York', 'info');
+  }, [fetchWeatherData, clearError, handleError, selectedDate, setCurrentLocation]);
 
   useEffect(() => {
     if (currentLocation && selectedDate) {
@@ -262,39 +265,55 @@ const App = () => {
   // Cleanup cache managers on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
-      searchCache.stopCleanup();
-      weatherCache.stopCleanup();
-      reverseGeocodeCache.stopCleanup();
+      const cleanupCache = (cacheName: string, cache: { stopCleanup?: () => void } | null) => {
+        try {
+          if (cache && typeof cache.stopCleanup === 'function') {
+            cache.stopCleanup();
+          }
+        } catch (error) {
+          console.warn(`Error stopping ${cacheName} cache cleanup:`, error);
+        }
+      };
+
+      cleanupCache('search', searchCacheRef.current);
+      cleanupCache('weather', weatherCacheRef.current);
+      cleanupCache('reverse geocode', reverseGeocodeCacheRef.current);
     };
-  }, [searchCache, weatherCache, reverseGeocodeCache]);
+  }, []); // Empty dependency array since we want this to run only on unmount
+
 
   return (
     <ErrorBoundary onError={(error) => handleError(error.message, 'error')}>
-      <div class="app-container">
-        <header class="header">
+      <div className="app-container">
+        <header className="header">
           <h1>Weather History Viewer</h1>
           <p>Explore historical weather data from 1940 to present</p>
         </header>
 
         {error && (
-          <div class={`error-message ${error.type}`} role="alert">
-            {error.message}
+          <div className={`error-message ${error.type}`} role="alert">
+            <div>{error.message}</div>
           </div>
         )}
 
         {isLoading && (
-          <div class="loading-message" role="status" aria-live="polite">
+          <div className="loading-message" role="status" aria-live="polite">
+            <span className="loading-spinner"></span>
             Loading weather data...
           </div>
         )}
 
-        <div class="left-panel">
-          <div class="controls-section">
-            <div class="geolocation-section">
-              <button onClick={handleGeolocationClick} disabled={geolocationRequested} class="geolocation-btn" aria-label="Use my current location" aria-describedby="geolocation-desc">
+        <div className="left-panel">
+          <div className="controls-section">
+            <div className="geolocation-section">
+              <h3>Location</h3>
+              <button onClick={handleGeolocationClick} disabled={geolocationRequested} className="geolocation-btn" aria-label="Use my current location" aria-describedby="geolocation-desc">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10zm0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+                </svg>
                 {geolocationRequested ? 'Using your location...' : 'Use My Location'}
               </button>
-              <p id="geolocation-desc" class="geolocation-desc">
+              <p id="geolocation-desc" className="geolocation-desc">
                 Click to use your current location (requires permission for privacy).
               </p>
             </div>
@@ -308,7 +327,8 @@ const App = () => {
              loading={isLoading}
            />
           </div>
-          <div class="map-section">
+          <div className="map-section">
+            <h3>Map</h3>
             <ErrorBoundary>
               <MapComponent
                 latitude={currentLocation?.latitude || DEFAULT_LATITUDE}
@@ -321,7 +341,7 @@ const App = () => {
         </div>
 
         {!isLoading && !error?.message && (
-          <div class="weather-section">
+          <div className="weather-section">
             <ErrorBoundary>
               <WeatherDisplay
                 weatherData={weatherData}
