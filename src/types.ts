@@ -2,8 +2,8 @@
  * Type definitions for enhanced type safety across the application
  */
 
-import { DailyWeatherData, HourlyWeatherData } from './open-meteo';
-import { Location, LocationSearchResult, FallbackLocation } from './types/location';
+import { DailyWeatherData, HourlyWeatherData } from './open-meteo.js';
+import { Location, LocationSearchResult, FallbackLocation } from './types/location.js';
 
 /**
  * Standardized error response format for API communication

@@ -82,7 +82,7 @@ const defaultEnvVars = {
       // Simple URL validation - can be enhanced if needed
       return value.length > 0 && (value.startsWith('http://') || value.startsWith('https://'));
     },
-    defaultValue: 'http://localhost:3001', // Removed /api suffix to make it more flexible
+    defaultValue: 'http://localhost:3001/api',
     description: 'Base URL for API requests'
   }
 };
@@ -98,7 +98,7 @@ const defaultEnvVars = {
   * @returns The validated environment variable value
   * @throws ConfigurationError if the variable is required but missing or invalid
   */
-export function getEnvVar(name: string, config?: EnvVarConfig): string {
+export function getEnvVar(name: string, config?: EnvVarConfig): string | undefined {
   const value = process.env[name];
   const varConfig = config || defaultEnvVars[name as keyof typeof defaultEnvVars] || { required: false };
   
@@ -112,15 +112,15 @@ export function getEnvVar(name: string, config?: EnvVarConfig): string {
     return varConfig.defaultValue;
   }
   
-  // If no value and not required, return empty string
+  // If no value and not required, return undefined
   if (value === undefined || value === '') {
-    return '';
+    return undefined;
   }
   
-  // Validate if validator is provided
-  if (varConfig.validator && !varConfig.validator(value)) {
+  // Validate only when a non-empty value is provided. Optional empty values are allowed.
+  if (varConfig.validator && value !== '' && !varConfig.validator(value)) {
     throw new ConfigurationError(
-      `Environment variable ${name} has invalid value: ${value}`, 
+      `Environment variable ${name} has invalid value: ${value}`,
       name
     );
   }
@@ -138,7 +138,22 @@ export function validateEnvVars(): void {
   // Validate default environment variables
   for (const [name, config] of Object.entries(defaultEnvVars)) {
     try {
-      getEnvVar(name, config);
+      const value = process.env[name];
+
+      // If not required and no value provided, skip validator
+      if ((value === undefined || value === '') && !config.required) {
+        continue;
+      }
+
+      // If value missing but required, record error
+      if ((value === undefined || value === '') && config.required) {
+        errors.push(`Required environment variable ${name} is not set`);
+        continue;
+      }
+
+      if (config.validator && !config.validator(value as string)) {
+        errors.push(`Environment variable ${name} has invalid value: ${value}`);
+      }
     } catch (error: unknown) {
       if (error instanceof ConfigurationError) {
         errors.push(error.message);

@@ -1,6 +1,6 @@
 import { h } from 'preact';
 
-import { useState, useMemo } from 'preact/hooks';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'preact/hooks';
 
 import debounce from 'lodash/debounce';
 
@@ -16,9 +16,10 @@ export const LocationSearch = ({ onLocationSelect, currentLocation }: LocationSe
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Location[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const handleSearch = async (searchQuery: string) => {
+  const handleSearch = useCallback(async (searchQuery: string) => {
     if (searchQuery.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -26,21 +27,42 @@ export const LocationSearch = ({ onLocationSelect, currentLocation }: LocationSe
     }
 
     setIsLoading(true);
+    setError(null);
     try {
         const results = await searchLocations(searchQuery);
         // Ensure results is an array before slicing
         const suggestionsList = Array.isArray(results) ? results.slice(0, 5) : [];
         setSuggestions(suggestionsList);
         setShowSuggestions(true);
-      } catch (_error) { // eslint-disable-line @typescript-eslint/no-unused-vars
+        if (suggestionsList.length === 0) {
+          setError('No locations found. Please try a different search term.');
+        }
+      } catch {
+        setError('Failed to fetch locations. Please check your connection and try again.');
         setSuggestions([]);
         setShowSuggestions(false);
       } finally {
         setIsLoading(false);
       }
-  };
+  }, []);
 
-  const debouncedSearch = useMemo(() => debounce(handleSearch, 300), []);
+  const debouncedSearch = useMemo(() => debounce(handleSearch, 300), [handleSearch]);
+
+  const blurTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      try {
+        debouncedSearch.cancel();
+      } catch (err) {
+        // Cancellation may throw in some implementations; not fatal
+        console.debug('debouncedSearch.cancel() threw:', err);
+      }
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current as unknown as number);
+      }
+    };
+  }, [debouncedSearch]);
 
   const handleInputChange = (e: Event) => {
     const {value} = (e.target as HTMLInputElement);
@@ -50,9 +72,13 @@ export const LocationSearch = ({ onLocationSelect, currentLocation }: LocationSe
 
   const handleInputBlur = () => {
     // Delay hiding suggestions to allow clicking on them
-    setTimeout(() => {
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current as unknown as number);
+    }
+    blurTimeoutRef.current = (setTimeout(() => {
       setShowSuggestions(false);
-    }, 200);
+      blurTimeoutRef.current = null;
+    }, 200) as unknown) as number;
   };
 
   const handleInputFocus = () => {
@@ -122,6 +148,8 @@ export const LocationSearch = ({ onLocationSelect, currentLocation }: LocationSe
           )}
         </div>
       )}
+
+      {error && <div class="error-message error">{error}</div>}
       
       {currentLocation && (
         <div class="current-location">

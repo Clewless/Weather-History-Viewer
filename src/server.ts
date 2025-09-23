@@ -1,33 +1,53 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 import express from 'express';
 import helmet from 'helmet';
 import { config } from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { escape } from 'validator';
 
-import { ValidationError, createErrorResponse, NetworkError, wrapError } from './errors';
-import { getEnvVar, validateEnvVars } from './utils/env';
-import { createCorsMiddleware } from './utils/cors';
-import { getStringParam, getNumberParam } from './utils/params';
-import { 
-  validateDateRangeWithErrors, 
-  validateCoordinatesWithErrors, 
+import { ValidationError, createErrorResponse, NetworkError, wrapError } from './errors.js';
+import { getEnvVar, validateEnvVars } from './utils/env.js';
+import { createCorsMiddleware } from './utils/cors.js';
+import { getParams } from './utils/params.js';
+import {
+  validateDateRangeWithErrors,
+  validateCoordinatesWithErrors,
   validateSearchQueryWithErrors,
   validateTimezoneWithErrors
-} from './utils/validation';
-import { NamespaceCacheManager } from './utils/unifiedCacheManager';
+} from './utils/validation.js';
+import { NamespaceCacheManager } from './utils/unifiedCacheManager.js';
 import {
   searchLocations,
   getHistoricalWeather,
   reverseGeocode,
   DailyWeatherData,
   HourlyWeatherData
-} from './open-meteo';
-import { Location as GeoLocation } from './types';
-import { getCurrentISODate } from './utils/dateUtils';
-import { CACHE_TTL, RATE_LIMITS } from './constants';
+} from './open-meteo.js';
+import { Location as GeoLocation } from './types/location.js';
+import { getCurrentISODate } from './utils/dateUtils.js';
+import { CACHE_TTL, RATE_LIMITS } from './constants.js';
 
 // Load environment variables from .env file
 config();
+
+// Compute __filename and __dirname for ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Add diagnostic logging
+console.log('Starting server...');
+console.log('__dirname:', __dirname);
+console.log('__filename:', __filename);
+
+// Debug environment variables (use validated getters where possible)
+console.log('Environment variables:');
+console.log('  NODE_ENV:', getEnvVar('NODE_ENV') ?? 'not set');
+console.log('  PORT:', getEnvVar('PORT') ?? 'not set');
+console.log('  API_BASE_URL:', getEnvVar('API_BASE_URL') ?? 'not set');
+console.log('  FRONTEND_PORT:', getEnvVar('FRONTEND_PORT') ?? 'not set');
+console.log('  CORS_ORIGIN:', getEnvVar('CORS_ORIGIN') ?? 'not set');
 
 // Validate environment variables
 try {
@@ -37,6 +57,12 @@ try {
   console.error('Environment validation failed:', error);
   process.exit(1);
 }
+
+// Get validated environment variables (provide safe fallbacks)
+const nodeEnv = getEnvVar('NODE_ENV') ?? 'development';
+const port = Number.parseInt(getEnvVar('PORT') ?? '3001', 10);
+const frontendPort = Number.parseInt(getEnvVar('FRONTEND_PORT') ?? '3000', 10);
+const corsOrigins = getEnvVar('CORS_ORIGIN') ?? '';
 
 /**
  * This file sets up a simple Express server to act as a Backend-for-Frontend (BFF).
@@ -50,18 +76,14 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000'] : [])],
+        scriptSrc: ["'self'", "'unsafe-inline'", ...(nodeEnv === 'development' ? ['http://localhost:3000'] : [])],
         styleSrc: ["'self'", "'unsafe-inline'"],
       },
     },
   })
 );
 
-// Get validated environment variables
-const port = parseInt(getEnvVar('PORT'));
-const frontendPort = parseInt(getEnvVar('FRONTEND_PORT'));
-const corsOrigins = getEnvVar('CORS_ORIGIN');
-const nodeEnv = getEnvVar('NODE_ENV');
+// (Env variables already computed above)
 
 // Define the type for the cache data
 type CacheData = GeoLocation[] | { daily: DailyWeatherData; hourly: HourlyWeatherData } | GeoLocation;
@@ -101,8 +123,8 @@ app.use('/api/weather', weatherLimiter);
  * Health check endpoint
  */
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: getCurrentISODate(),
     uptime: process.uptime(),
     memory: {
@@ -112,7 +134,34 @@ app.get('/api/health', (req, res) => {
       external: Math.round(process.memoryUsage().external / 1024 / 1024 * 100) / 100 // MB
     },
     nodeEnv,
-    port
+    port,
+    environment: {
+      API_BASE_URL: getEnvVar('API_BASE_URL') || 'not set',
+      NODE_ENV: nodeEnv || 'not set',
+      PORT: String(port || 'not set')
+    }
+  });
+});
+
+/**
+ * Debug endpoint to check API configuration
+ */
+app.get('/api/debug-config', (req, res) => {
+  res.json({
+    server: {
+      baseUrl: `http://localhost:${port}`,
+      apiPrefix: '/api',
+      fullApiUrl: `http://localhost:${port}/api`
+    },
+    expectedFrontendConfig: {
+      API_BASE_URL: `http://localhost:${port}/api`
+    },
+    endpoints: {
+      health: `/api/health`,
+      search: `/api/search?q=<query>`,
+      weather: `/api/weather?lat=<lat>&lon=<lon>&start=<date>&end=<date>&timezone=<tz>`,
+      reverseGeocode: `/api/reverse-geocode?lat=<lat>&lon=<lon>`
+    }
   });
 });
 
@@ -122,15 +171,11 @@ app.get('/api/health', (req, res) => {
  */
 app.get('/api/search', async (req, res) => {
   try {
-    // Validate query parameter exists
-    if (!req.query.q) {
-      return res.status(400).json(createErrorResponse(
-        new ValidationError('Query parameter "q" is required', 'q'), 
-        400
-      ));
-    }
-    
-    const query = getStringParam(req.query, 'q')!;
+    // Validate query parameter exists and extract it
+    const { q: query } = getParams(req.query, {
+      q: { type: 'string' }
+    }) as { q: string };
+
     validateSearchQueryWithErrors(query);
 
     // Check cache first
@@ -165,11 +210,32 @@ app.get('/api/search', async (req, res) => {
 app.get('/api/weather', async (req, res) => {
   try {
     // Extract and validate required parameters in one step
-    const lat = getNumberParam(req.query, 'lat');
-    const lon = getNumberParam(req.query, 'lon');
-    const start = getStringParam(req.query, 'start');
-    const end = getStringParam(req.query, 'end');
-    const timezone = getStringParam(req.query, 'timezone');
+    const { lat, lon, start, end, timezone } = getParams(req.query, {
+      lat: { type: 'number' },
+      lon: { type: 'number' },
+      start: { type: 'string' },
+      end: { type: 'string' },
+      timezone: { type: 'string' }
+    }) as { lat: number; lon: number; start: string; end: string; timezone: string };
+
+    // Normalize/trim date strings to avoid accidental whitespace or encoding artifacts
+    const startTrim = start.trim();
+    const endTrim = end.trim();
+
+    // Debug logging for parameters
+    console.log(`[DEBUG] Extracted parameters:`);
+    console.log(`  lat: ${lat}, lon: ${lon}`);
+    console.log(`  start: "${start}", end: "${end}"`);
+    console.log(`  timezone: "${timezone}"`);
+    console.log(`[DEBUG] Parameter types:`, {
+      latType: typeof lat,
+      lonType: typeof lon,
+      startType: typeof start,
+      endType: typeof end,
+      timezoneType: typeof timezone,
+      startIsString: typeof start === 'string',
+      endIsString: typeof end === 'string'
+    });
 
     // Validate all parameters exist and are valid
     if (!lat) {
@@ -214,10 +280,11 @@ app.get('/api/weather', async (req, res) => {
     validateTimezoneWithErrors(timezone);
 
     // Validate date range
-    validateDateRangeWithErrors(start, end);
+  console.log(`[DEBUG] Date validation - start: "${startTrim}", end: "${endTrim}"`);
+  validateDateRangeWithErrors(startTrim as string, endTrim as string);
 
     // Check cache first
-    const cacheKey = `${lat}:${lon}:${start}:${end}:${timezone}`;
+  const cacheKey = `${lat}:${lon}:${startTrim}:${endTrim}:${timezone}`;
     const cachedResult = cache.get('weather', cacheKey);
     if (cachedResult) {
       return res.json(cachedResult);
@@ -225,8 +292,8 @@ app.get('/api/weather', async (req, res) => {
 
     const weather = await getHistoricalWeather(
       { latitude: lat, longitude: lon, timezone },
-      start,
-      end
+      startTrim as string,
+      endTrim as string
     );
     
     // Cache the result
@@ -249,17 +316,11 @@ app.get('/api/weather', async (req, res) => {
  */
 app.get('/api/reverse-geocode', async (req, res) => {
   try {
-    // Validate required parameters exist
-    if (!req.query.lat || !req.query.lon) {
-      return res.status(400).json(createErrorResponse(
-        new ValidationError('Missing required parameters: lat, lon'), 
-        400
-      ));
-    }
-    
     // Extract and validate required parameters
-    const lat = getNumberParam(req.query, 'lat')!;
-    const lon = getNumberParam(req.query, 'lon')!;
+    const { lat, lon } = getParams(req.query, {
+      lat: { type: 'number' },
+      lon: { type: 'number' }
+    }) as { lat: number; lon: number };
 
     // Validate coordinates
     validateCoordinatesWithErrors(lat, lon);
@@ -323,9 +384,25 @@ app.use((req, res) => {
 });
 
 const server = app.listen(port, () => {
-  console.log(`Server listening at http://localhost:${port}`);
-  console.log(`Environment: ${nodeEnv}`);
-  console.log(`CORS origins: ${corsOrigins || 'None specified'}`);
+  console.log(`🚀 Server successfully started!`);
+  console.log(`📍 Server listening at http://localhost:${port}`);
+  console.log(`🌍 Environment: ${nodeEnv}`);
+  console.log(`🔒 CORS origins: ${corsOrigins || 'None specified'}`);
+  console.log(`🏥 Health check available at: http://localhost:${port}/api/health`);
+  console.log(`📊 Available endpoints:`);
+  console.log(`   GET /api/health - Health check`);
+  console.log(`   GET /api/debug-config - View API configuration`);
+  console.log(`   GET /api/search?q=<query> - Search locations`);
+  console.log(`   GET /api/weather?lat=<lat>&lon=<lon>&start=<date>&end=<date>&timezone=<tz> - Get weather data`);
+  console.log(`   GET /api/reverse-geocode?lat=<lat>&lon=<lon> - Reverse geocode`);
+  if (nodeEnv === 'development') {
+    console.log(`   GET /api/cache-stats - View cache statistics`);
+    console.log(`   GET /api/cache-clear - Clear all caches`);
+  }
+  console.log(`\n💡 If you're seeing API errors, check that:`);
+  console.log(`   1. The server is running (you should see this message)`);
+  console.log(`   2. Frontend API_BASE_URL matches: http://localhost:${port}/api`);
+  console.log(`   3. No firewall is blocking port ${port}`);
 });
 
 /**

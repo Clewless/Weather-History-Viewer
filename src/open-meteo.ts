@@ -2,12 +2,12 @@ import axios from 'axios';
 import axiosRetry, { exponentialDelay, isRetryableError } from 'axios-retry';
 import tzLookup from 'tz-lookup';
 
-import { APIError, wrapError } from './errors';
-import { validateDateRangeWithErrors, validateCoordinatesWithErrors, validateTimezoneWithErrors } from './utils/validation';
-import { getEnvVar } from './utils/env';
-import { parseAPITimeString } from './utils/dateUtils';
-import { Location } from './types';
-import { FALLBACK_LOCATION } from './constants';
+import { APIError, wrapError } from './errors.js';
+import { validateDateRangeWithErrors, validateCoordinatesWithErrors, validateTimezoneWithErrors } from './utils/validation.js';
+import { getEnvVar } from './utils/env.js';
+import { parseAPITimeString } from './utils/dateUtils.js';
+import { Location } from './types.js';
+import { FALLBACK_LOCATION } from './constants.js';
 
 /**
  * Core location data required for weather operations

@@ -3,7 +3,7 @@ import { h } from 'preact';
 import type { JSX } from 'preact/jsx-runtime';
 import { useEffect, useRef } from 'preact/hooks';
 
-import { DailyWeatherData, HourlyWeatherData } from '../open-meteo';
+import { DailyWeatherData, HourlyWeatherData } from '../open-meteo.js';
 import { Location } from '../types';
 import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
 import { getCurrentDateString } from '../utils/dateUtils';
@@ -79,13 +79,13 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
     ctx.lineWidth = 1;
     
     // Horizontal grid lines
-    for (let i = 0; i <= 5; i++) {
+    Array.from({ length: 6 }).forEach((_, i) => {
       const y = padding + (chartHeight / 5) * i;
       ctx.beginPath();
       ctx.moveTo(padding, y);
       ctx.lineTo(padding + chartWidth, y);
       ctx.stroke();
-    }
+    });
 
     // Vertical grid lines
     const hoursToShow = precipitationData.length;
@@ -142,21 +142,21 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
     ctx.font = `${FONT_SIZE_SMALL}px sans-serif`;
     ctx.textAlign = 'right';
     
-    for (let i = 0; i <= 5; i++) {
+    Array.from({ length: 6 }).forEach((_, i) => {
       const precip = (maxPrecipitation / 5) * (5 - i);
       const y = padding + (chartHeight / 5) * i;
       ctx.fillText(`${precip.toFixed(1)}mm`, padding - LABEL_OFFSET_X, y + LABEL_OFFSET_Y);
-    }
+    });
 
     // Draw Y-axis labels (right side - cloud cover)
     ctx.fillStyle = '#868e96';
     ctx.textAlign = 'left';
     
-    for (let i = 0; i <= 5; i++) {
+    Array.from({ length: 6 }).forEach((_, i) => {
       const cover = (maxCloudCover / 5) * (5 - i);
       const y = padding + (chartHeight / 5) * i;
       ctx.fillText(`${cover}%`, padding + chartWidth + LABEL_OFFSET_X, y + LABEL_OFFSET_Y);
-    }
+    });
 
     // Draw X-axis labels (hours)
     ctx.fillStyle = '#666';

@@ -5,6 +5,16 @@ import CssMinimizerPlugin from 'css-minimizer-webpack-plugin';
 import TerserPlugin from 'terser-webpack-plugin';
 import path from 'path';
 import process from 'process';
+import webpack from 'webpack';
+
+import dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config({ path: './.env' });
+
+// Build configuration:
+// - Source: TypeScript with ES2022 features
+// - Target: ES8 (ES2017) for modern browser compatibility
 
 export default (env, argv) => {
   // Determine mode based on argv.mode or default to development
@@ -47,20 +57,25 @@ export default (env, argv) => {
       ]
     },
     plugins: [
-       new HtmlWebpackPlugin({
-         template: './src/index.html'
-       }),
-       new Dotenv({
-         path: './.env',
-         safe: false, // Don't require all variables to be present
-         systemvars: true
-       }),
-       ...(isProduction ? [
-         new MiniCssExtractPlugin({
-           filename: '[name].[contenthash].css'
-         })
-       ] : [])
-     ],
+        new HtmlWebpackPlugin({
+          template: './src/index.html'
+        }),
+        new Dotenv({
+          path: './.env',
+          safe: false, // Don't require all variables to be present
+          systemvars: true
+        }),
+        // Make environment variables available in the frontend
+        new webpack.DefinePlugin({
+          'process.env.API_BASE_URL': JSON.stringify(process.env.API_BASE_URL),
+          'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+        }),
+        ...(isProduction ? [
+          new MiniCssExtractPlugin({
+            filename: '[name].[contenthash].css'
+          })
+        ] : [])
+      ],
     devServer: {
       static: './dist/client',
       hot: true,

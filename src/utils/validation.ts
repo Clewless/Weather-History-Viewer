@@ -2,19 +2,60 @@
  * Enhanced validation utilities with sanitization for use across the application
  */
 
-import { escape } from 'validator';
-
 import { ValidationError } from '../errors';
 
+import { getEnvVar } from './env';
 import { parseDateString, isValidDateString, isValidDateRange } from './dateUtils';
 
+// Control verbose logging via environment variable. Default: false
+const DEBUG_LOGS = getEnvVar('DEBUG_LOGS') === 'true';
+
 /**
- * Validates if a date string is in YYYY-MM-DD format and represents a valid date.
- * @param dateStr - Date string in YYYY-MM-DD format
- * @returns True if valid, false otherwise
+ * Type guard to check if a value is a valid date string
+ * @param dateStr - Value to check
+ * @returns True if the value is a valid date string, false otherwise
  */
-export const isValidDate = (dateStr: string): boolean => {
-  return isValidDateString(dateStr);
+export const isValidDateStringGuard = (dateStr: unknown): dateStr is `${number}-${number}-${number}` => {
+  return typeof dateStr === 'string' && isValidDateString(dateStr);
+};
+
+/**
+ * Type guard to check if coordinates are valid
+ * @param lat - Latitude value
+ * @param lng - Longitude value
+ * @returns True if both coordinates are valid numbers within range, false otherwise
+ */
+export const isValidCoordinateGuard = (lat: unknown, lng: unknown): boolean => {
+  // Convert to numbers if they're strings
+  const latitude = typeof lat === 'string' ? parseFloat(lat) : lat;
+  const longitude = typeof lng === 'string' ? parseFloat(lng) : lng;
+
+  // Check if they're valid numbers
+  if (typeof latitude !== 'number' || isNaN(latitude) ||
+      typeof longitude !== 'number' || isNaN(longitude)) {
+    return false;
+  }
+
+  // Validate the ranges
+  return validateLatLng(latitude, longitude);
+};
+
+/**
+ * Type guard to check if a value is a valid search query
+ * @param query - Value to check
+ * @returns True if the value is a valid search query, false otherwise
+ */
+export const isValidSearchQueryGuard = (query: unknown): query is string => {
+  return typeof query === 'string' && validateAndSanitizeSearchQuery(query) !== false;
+};
+
+/**
+ * Type guard to check if a value is a valid timezone
+ * @param timezone - Value to check
+ * @returns True if the value is a valid timezone, false otherwise
+ */
+export const isValidTimezoneGuard = (timezone: unknown): timezone is string => {
+  return typeof timezone === 'string' && validateTimezone(timezone);
 };
 
 /**
@@ -82,7 +123,7 @@ export const validateAndSanitizeDateRange = (start: string, end: string): {start
   const sanitizedStart = escape(start);
   const sanitizedEnd = escape(end);
 
-  if (!isValidDate(sanitizedStart) || !isValidDate(sanitizedEnd)) {
+  if (!isValidDateString(sanitizedStart) || !isValidDateString(sanitizedEnd)) {
     return false;
   }
 
@@ -156,23 +197,24 @@ export const validateAndSanitizeTimezone = (timezone: string): string | false =>
  * @throws ValidationError if validation fails
  */
 export const validateDateRangeWithErrors = (start: string, end: string): void => {
-  if (!isValidDate(start) || !isValidDate(end)) {
-    throw new ValidationError('Invalid date format. Please use valid YYYY-MM-DD dates', 'date', { start, end });
-  }
+  if (DEBUG_LOGS) console.log('[DEBUG] validateDateRangeWithErrors called with:', { start, end });
+  // Use the sanitizer/validator helper which trims, escapes and performs
+  // consistent validation. This avoids false negatives caused by timezone
+  // offsets when constructing Date objects directly from YYYY-MM-DD strings.
+  const sanitized = validateAndSanitizeDateRange(start, end);
+  if (!sanitized) {
+    if (DEBUG_LOGS) console.log('[DEBUG] validateDateRangeWithErrors - validateAndSanitizeDateRange returned false', { start, end });
+    // Distinguish between format and range errors where possible
+    if (!isValidDateString(start) || !isValidDateString(end)) {
+      throw new ValidationError('Invalid date format. Please use valid YYYY-MM-DD dates', 'date', { start, end });
+    }
 
-  if (!isValidDateRange(start, end)) {
-    throw new ValidationError('Date range cannot exceed 365 days', 'date_range', { start, end });
-  }
+    if (!isValidDateRange(start, end)) {
+      throw new ValidationError('Date range cannot exceed 365 days', 'date_range', { start, end });
+    }
 
-  const startDate = parseDateString(start);
-  const endDate = parseDateString(end);
-
-  if (!startDate || !endDate) {
-    throw new ValidationError('Invalid date format. Please use valid YYYY-MM-DD dates', 'date', { start, end });
-  }
-
-  if (startDate > endDate) {
-    throw new ValidationError('End date must be after or equal to start date', 'date_order', { start, end });
+    // Fallback generic error
+    throw new ValidationError('Invalid date range', 'date', { start, end });
   }
 };
 

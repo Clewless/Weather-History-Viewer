@@ -8,11 +8,13 @@
     "build": "webpack",
     "build:server": "tsc -p tsconfig.server.json",
     "start:server": "node dist/server/server.js",
+  "dev:server": "npx ts-node src/server.ts",
     "start:all": "concurrently \"npm start\" \"npm run start:server\"",
     "prod": "npm run build && npm run build:server && npm run start:server",
     "lint": "eslint . --ext .ts,.tsx,.js",
     "test": "jest --coverage",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "debug:server": "node src/debug-server.js"
   },
   "keywords": [
     "weather",

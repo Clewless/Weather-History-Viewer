@@ -2,8 +2,7 @@
  * Custom error classes for better error handling and debugging
  */
 
-import { ErrorResponse } from './types';
-import { getCurrentISODate } from './utils/dateUtils';
+import { ErrorResponse } from './types.js';
 
 export class NetworkError extends Error {
   constructor(message: string, public statusCode?: number) {
@@ -66,11 +65,11 @@ export function wrapError(error: unknown, context: string): Error {
     }
 
     // Wrap generic errors with context
-    return new Error(`${context}: ${error.message}`);
+    return new APIError(`${context}: ${error.message}`, 500, error);
   }
 
   // Handle non-Error objects
-  return new Error(`${context}: ${String(error)}`);
+  return new APIError(`${context}: ${String(error)}`, 500, error);
 }
 
 /**
@@ -79,7 +78,7 @@ export function wrapError(error: unknown, context: string): Error {
 export function createErrorResponse(error: Error, statusCode?: number): ErrorResponse {
   const response: ErrorResponse = {
     error: error.message,
-    timestamp: getCurrentISODate()
+    timestamp: new Date().toISOString()
   };
 
   if (statusCode) {

@@ -2,7 +2,7 @@
  * Utility functions for safe parameter handling in Express routes
  */
 
-import { ValidationError } from '../errors';
+import { ValidationError } from '../errors.js';
 
 /**
  * Safely extracts a string parameter from request query
@@ -108,4 +108,48 @@ export function requireParam(query: Record<string, unknown>, paramName: string):
   if (query[paramName] === undefined || query[paramName] === null) {
     throw new ValidationError(`Missing required parameter: ${paramName}`, paramName);
   }
+}
+
+/**
+ * Extracts multiple parameters from a query object at once
+ * @param query - The request query object
+ * @param paramSpecs - Object mapping parameter names to their types and required status
+ * @returns Object with extracted parameters
+ * @throws ValidationError if required parameters are missing or invalid
+ */
+export function getParams(
+  query: Record<string, unknown>,
+  paramSpecs: Record<string, { type: 'string' | 'number' | 'boolean'; required?: boolean }>
+): Record<string, string | number | boolean | undefined> {
+  const result: Record<string, string | number | boolean | undefined> = {};
+  
+  for (const [paramName, spec] of Object.entries(paramSpecs)) {
+    const { type, required = true } = spec;
+    
+    try {
+      switch (type) {
+        case 'string':
+          result[paramName] = getStringParam(query, paramName, required);
+          break;
+        case 'number':
+          result[paramName] = getNumberParam(query, paramName, required);
+          break;
+        case 'boolean':
+          result[paramName] = getBooleanParam(query, paramName, required);
+          break;
+      }
+    } catch (error) {
+      // Re-throw with additional context
+      if (error instanceof ValidationError) {
+        throw new ValidationError(
+          `Parameter validation failed for ${paramName}: ${error.message}`, 
+          paramName, 
+          error.value
+        );
+      }
+      throw error;
+    }
+  }
+  
+  return result;
 }

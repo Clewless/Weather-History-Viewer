@@ -2,7 +2,7 @@ import { h } from 'preact';
 
 import type { JSX } from 'preact/jsx-runtime';
 
-import { DailyWeatherData, HourlyWeatherData } from '../open-meteo';
+import { DailyWeatherData, HourlyWeatherData } from '../open-meteo.js';
 import { Location } from '../types';
 import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
 import { parseDateString } from '../utils/dateUtils';
@@ -35,12 +35,29 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
     );
   }
 
-  // Temperature conversion constants
-  const FAHRENHEIT_CONVERSION_FACTOR = 9/5;
-  const FAHRENHEIT_CONVERSION_OFFSET = 32;
+  const temperatureFormatter = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  });
 
-  const convertTemperature = (tempC: number): number => {
-    return temperatureUnit === 'F' ? (tempC * FAHRENHEIT_CONVERSION_FACTOR) + FAHRENHEIT_CONVERSION_OFFSET : tempC;
+  const precipitationFormatter = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1
+  });
+
+  const convertTemperature = (temp: number): number => {
+    if (temperatureUnit === 'F') {
+      return (temp * 9/5) + 32;
+    }
+    return temp;
+  };
+
+  const formatTemperature = (temp: number): string => {
+    return temperatureFormatter.format(Math.round(convertTemperature(temp)));
+  };
+
+  const formatPrecipitation = (precip: number): string => {
+    return precipitationFormatter.format(precip);
   };
 
   const formatTime = (time: string, timezone: string): string => {
@@ -135,7 +152,7 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
       <div class="daily-weather">
         <h4>Daily Summary</h4>
         <div class="daily-grid" role="grid" aria-label="Daily weather grid">
-          {weatherData.daily.time.length > 0 ? weatherData.daily.time.map((time: Date | string, index: number) => {
+          {weatherData?.daily?.time?.length ? weatherData.daily.time.map((time: Date | string, index: number) => {
             const date = typeof time === 'string' ? parseDateString(time) : time;
             if (!date) return null;
             return (
@@ -145,11 +162,11 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
                   {getWeatherIcon(weatherData.daily.weathercode?.[index] ?? 0)}
                 </div>
                 <div class="daily-temp">
-                  {Math.round(convertTemperature(weatherData.daily.temperature_2m_max?.[index] ?? 0))}°
-                  /{Math.round(convertTemperature(weatherData.daily.temperature_2m_min?.[index] ?? 0))}°
+                  {formatTemperature(weatherData.daily.temperature_2m_max?.[index] ?? 0)}°
+                  /{formatTemperature(weatherData.daily.temperature_2m_min?.[index] ?? 0)}°
                 </div>
                 <div class="daily-precip">
-                  {weatherData.daily.precipitation_sum?.[index] ?? 0}mm
+                  {formatPrecipitation(weatherData.daily.precipitation_sum?.[index] ?? 0)}mm
                 </div>
               </div>
             );

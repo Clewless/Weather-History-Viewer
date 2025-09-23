@@ -42,8 +42,7 @@ export const getLocalDayHours = (hourly: HourlyWeatherData, location: Location, 
     const cloudcover: number[] = [];
 
     // Filter hourly data for the selected day
-    for (let i = 0; i < hourly.time.length; i++) {
-      const time = hourly.time[i];
+    hourly.time.forEach((time: Date, i: number) => {
       const localTime = toZonedTime(time, location.timezone);
 
       // Check if this hour falls within our target day
@@ -54,7 +53,7 @@ export const getLocalDayHours = (hourly: HourlyWeatherData, location: Location, 
         codes.push(hourly.weathercode[i]);
         cloudcover.push(hourly.cloudcover[i]);
       }
-    }
+    });
 
     return { times: localTimes, temps, precip, codes, cloudcover };
 };
@@ -62,8 +61,8 @@ export const getLocalDayHours = (hourly: HourlyWeatherData, location: Location, 
 export const formatLocalTime = (time: string, timezone: string): string => {
   try {
     return formatTimeInTimezone(time, timezone);
-  } catch (error) {
-    console.warn('Failed to format time for timezone:', timezone, error);
+  } catch {
+    console.warn('Failed to format time for timezone:', timezone);
     return '00:00';
   }
 };

@@ -2,7 +2,7 @@ export default {
   presets: [
     ['@babel/preset-env', {
       targets: {
-        browsers: ["last 2 versions", "not dead", "not < 2%"]
+        browsers: ["Chrome >= 65", "Firefox >= 60", "Safari >= 12", "Edge >= 79", "not dead", "not < 2%"]
       }
     }],
     '@babel/preset-typescript',

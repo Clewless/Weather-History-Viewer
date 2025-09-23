@@ -9,14 +9,15 @@ import App from './components/App';
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
-  render(<App />, rootElement);
+  // Use explicit h() instead of JSX to avoid relying on automatic JSX runtime
+  render(h(App, {}), rootElement);
 }
 
 if ((module as unknown as { hot?: unknown }).hot) {
   (module as unknown as { hot?: { accept: (path: string, callback: () => void) => void } }).hot!.accept('./components/App', async () => {
     const { default: NextApp } = await import('./components/App');
     if (rootElement) {
-      render(<NextApp />, rootElement);
+      render(h(NextApp, {}), rootElement);
     }
   });
 }

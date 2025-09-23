@@ -327,9 +327,6 @@ body {
 }
 
 .calendar-popup {
-  position: absolute;
-  top: 100%;
-  left: 0;
   background: var(--white);
   border: 1px solid var(--gray-300);
   border-radius: var(--radius-lg);

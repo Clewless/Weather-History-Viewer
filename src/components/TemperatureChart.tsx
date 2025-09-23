@@ -3,7 +3,7 @@ import { h } from 'preact';
 import type { JSX } from 'preact/jsx-runtime';
 import { useEffect, useRef } from 'preact/hooks';
 
-import { DailyWeatherData, HourlyWeatherData } from '../open-meteo';
+import { DailyWeatherData, HourlyWeatherData } from '../open-meteo.js';
 import { Location } from '../types';
 import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
 import { getCurrentDateString } from '../utils/dateUtils';
@@ -71,13 +71,13 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
     ctx.lineWidth = 1;
     
     // Horizontal grid lines
-    for (let i = 0; i <= 5; i++) {
+    Array.from({ length: 6 }).forEach((_, i) => {
       const y = padding + (chartHeight / 5) * i;
       ctx.beginPath();
       ctx.moveTo(padding, y);
       ctx.lineTo(padding + chartWidth, y);
       ctx.stroke();
-    }
+    });
 
     // Vertical grid lines
     const hoursToShow = temperatures.length;
@@ -123,11 +123,11 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'right';
     
-    for (let i = 0; i <= 5; i++) {
+    Array.from({ length: 6 }).forEach((_, i) => {
       const temp = minTemp + (tempRange / 5) * (5 - i);
       const y = padding + (chartHeight / 5) * i;
       ctx.fillText(`${Math.round(temp)}°${temperatureUnit}`, padding - 10, y + 4);
-    }
+    });
 
     // Draw X-axis labels (hours)
     ctx.fillStyle = '#666';

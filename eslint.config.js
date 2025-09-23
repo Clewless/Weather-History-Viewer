@@ -212,6 +212,29 @@ export default [
     }
   },
 
+  // JavaScript files (Node.js environment)
+  {
+    files: ['**/*.js'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        exports: 'readonly',
+        global: 'readonly',
+        Buffer: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+      }
+    },
+    rules: {
+      'no-console': 'off', // Allow console in JavaScript files
+    }
+  },
+
   // Prettier configuration (must be last to override formatting rules)
   prettierConfig,
 ];

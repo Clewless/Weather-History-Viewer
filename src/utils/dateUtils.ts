@@ -11,8 +11,15 @@ import {
   addDays,
   subDays,
   isSameDay,
+  parseISO,
+  isValid as isValidDateFn,
 } from 'date-fns';
 import { formatInTimeZone as formatInTimeZoneTz } from 'date-fns-tz';
+
+import { getEnvVar } from './env';
+
+// Toggle verbose debug logging via environment variable. Disabled by default to keep tests quiet.
+const DEBUG_LOGS = getEnvVar('DEBUG_LOGS') === 'true';
 
 /**
  * Get current timestamp in milliseconds (equivalent to Date.now())
@@ -29,12 +36,18 @@ export const getCurrentTimestamp = (): number => {
  */
 export const parseDateString = (dateStr: string): Date | null => {
   try {
+    if (DEBUG_LOGS) console.log('[DEBUG] parseDateString called with:', { dateStr });
+
     // Add time component for proper parsing if it's just a date
     const dateTimeStr = dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00.000Z`;
+    if (DEBUG_LOGS) console.log('[DEBUG] parseDateString - dateTimeStr:', { dateTimeStr });
+
     const date = new Date(dateTimeStr);
+    if (DEBUG_LOGS) console.log('[DEBUG] parseDateString - parsed date:', { date, isValid: !isNaN(date.getTime()), timestamp: date.getTime() });
+
     return isNaN(date.getTime()) ? null : date;
-  } catch (error) {
-    console.warn('Failed to parse date string:', dateStr, error);
+  } catch {
+    console.warn('Failed to parse date string:', dateStr);
     return null;
   }
 };
@@ -45,30 +58,45 @@ export const parseDateString = (dateStr: string): Date | null => {
  * @returns True if valid, false otherwise
  */
 export const isValidDateString = (dateStr: string): boolean => {
+  if (DEBUG_LOGS) console.log('[DEBUG] isValidDateString called with:', { dateStr });
+
   if (!dateStr || typeof dateStr !== 'string') {
+    console.log('[DEBUG] isValidDateString failed: empty or not string');
     return false;
   }
+
+  // Trim whitespace to be more tolerant of inputs
+  const trimmed = dateStr.trim();
 
   // Check basic format first (YYYY-MM-DD)
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateRegex.test(dateStr)) {
+  if (!dateRegex.test(trimmed)) {
+    if (DEBUG_LOGS) console.log('[DEBUG] isValidDateString failed: regex test failed');
     return false;
   }
 
-  const date = parseDateString(dateStr);
-  if (!date) {
+  // Prefer using date-fns parseISO which handles YYYY-MM-DD reliably
+  try {
+    const date = parseISO(trimmed);
+    if (!isValidDateFn(date)) {
+      if (DEBUG_LOGS) console.log('[DEBUG] isValidDateString failed: parseISO returned invalid date');
+      return false;
+    }
+
+    const [year, month, day] = trimmed.split('-').map(Number);
+    const isValid = (
+      getYear(date) === year &&
+      getMonth(date) === month - 1 &&
+      getDate(date) === day
+    );
+
+    if (DEBUG_LOGS) console.log('[DEBUG] isValidDateString result:', { isValid, parsedDate: date });
+
+    return isValid;
+  } catch {
+    if (DEBUG_LOGS) console.log('[DEBUG] isValidDateString exception');
     return false;
   }
-
-  // Extract components to validate
-  const [year, month, day] = dateStr.split('-').map(Number);
-
-  // Check if the parsed date matches the original components
-  return (
-    getYear(date) === year &&
-    getMonth(date) === month - 1 &&
-    getDate(date) === day
-  );
 };
 
 /**

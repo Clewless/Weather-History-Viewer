@@ -18,7 +18,7 @@ export const GEO_BOUNDS = {
   MAX_LONGITUDE: 180,
 } as const;
 
-import { FallbackLocation } from './types';
+import { FallbackLocation } from './types.js';
 
 /** Fallback location data when geolocation fails */
 export const FALLBACK_LOCATION: FallbackLocation = {
@@ -39,10 +39,10 @@ export const FALLBACK_LOCATION: FallbackLocation = {
 
 /** Cache TTL values (in milliseconds) */
 export const CACHE_TTL = {
-  SEARCH: 5 * 60 * 1000,        // 5 minutes
-  WEATHER: 30 * 60 * 1000,      // 30 minutes
-  REVERSE_GEOCODE: 30 * 60 * 1000, // 30 minutes
-  SERVER_DEFAULT: 30 * 60 * 1000, // 30 minutes (general server cache)
+  SEARCH: 5 * 60 * 1_000,        // 5 minutes
+  WEATHER: 30 * 60 * 1_000,      // 30 minutes
+  REVERSE_GEOCODE: 30 * 60 * 1_000, // 30 minutes
+  SERVER_DEFAULT: 30 * 60 * 1_000, // 30 minutes (general server cache)
 } as const;
 
 // =========================================
@@ -51,7 +51,7 @@ export const CACHE_TTL = {
 
 /** API request configuration */
 export const API_CONFIG = {
-  TIMEOUT: 10000, // 10 seconds
+  TIMEOUT: 10_000, // 10 seconds
   RETRIES: 3,
 } as const;
 
@@ -62,8 +62,8 @@ export const API_CONFIG = {
 /** Browser geolocation API configuration */
 export const GEOLOCATION_CONFIG = {
   ENABLE_HIGH_ACCURACY: true,
-  TIMEOUT: 10000, // 10 seconds
-  MAXIMUM_AGE: 300000, // 5 minutes
+  TIMEOUT: 10_000, // 10 seconds
+  MAXIMUM_AGE: 300_000, // 5 minutes
 } as const;
 
 // =========================================
@@ -73,11 +73,11 @@ export const GEOLOCATION_CONFIG = {
 /** Rate limiting configuration for API endpoints */
 export const RATE_LIMITS = {
   GENERAL: {
-    WINDOW_MS: 15 * 60 * 1000, // 15 minutes
+    WINDOW_MS: 15 * 60 * 1_000, // 15 minutes
     MAX_REQUESTS: 100,
   },
   WEATHER: {
-    WINDOW_MS: 15 * 60 * 1000, // 15 minutes
+    WINDOW_MS: 15 * 60 * 1_000, // 15 minutes
     MAX_REQUESTS: 50,
   },
 } as const;

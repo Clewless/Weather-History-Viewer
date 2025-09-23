@@ -17,15 +17,15 @@ export interface CacheItem<T> {
 
 
 export class UnifiedCacheManager<T> {
-  private cache: Map<string, CacheItem<T>>;
-  private defaultTTL: number; // in milliseconds
-  private maxSize: number;
-  private cleanupInterval: number; // in milliseconds
-  private cleanupTimer: NodeJS.Timeout | null;
-  private hitCount: number;
-  private missCount: number;
-  private accessOrder: string[]; // Track access order for efficient LRU eviction
-  private itemsToCleanup: Set<string>;
+  #cache: Map<string, CacheItem<T>>;
+  #defaultTTL: number; // in milliseconds
+  #maxSize: number;
+  #cleanupInterval: number; // in milliseconds
+  #cleanupTimer: NodeJS.Timeout | null;
+  #hitCount: number;
+  #missCount: number;
+  #accessOrder: string[]; // Track access order for efficient LRU eviction
+  #itemsToCleanup: Set<string>;
 
   /**
    * Creates a new cache manager instance
@@ -33,19 +33,19 @@ export class UnifiedCacheManager<T> {
    * @param maxSize Maximum number of items to store in the cache
    * @param cleanupInterval Interval for automatic cleanup of expired items in milliseconds
    */
-  constructor(defaultTTL: number = 5 * 60 * 1000, maxSize: number = 1000, cleanupInterval: number = 60 * 1000) {
-    this.cache = new Map();
-    this.defaultTTL = defaultTTL;
-    this.maxSize = maxSize;
-    this.cleanupInterval = cleanupInterval;
-    this.cleanupTimer = null;
-    this.hitCount = 0;
-    this.missCount = 0;
-    this.accessOrder = [];
-    this.itemsToCleanup = new Set();
+  constructor(defaultTTL: number = 5 * 60 * 1_000, maxSize: number = 1_000, cleanupInterval: number = 60 * 1_000) {
+    this.#cache = new Map();
+    this.#defaultTTL = defaultTTL;
+    this.#maxSize = maxSize;
+    this.#cleanupInterval = cleanupInterval;
+    this.#cleanupTimer = null;
+    this.#hitCount = 0;
+    this.#missCount = 0;
+    this.#accessOrder = [];
+    this.#itemsToCleanup = new Set();
 
     // Start automatic cleanup
-    this.startCleanup();
+    this.#startCleanup();
   }
 
   /**
@@ -54,26 +54,26 @@ export class UnifiedCacheManager<T> {
    * @returns Cached data or null if not found or expired
    */
   get(key: string): T | null {
-    const item = this.cache.get(key);
+    const item = this.#cache.get(key);
 
     if (!item) {
-      this.missCount++;
+      this.#missCount++;
       return null;
     }
 
     // Check if expired
     if (getCurrentTimestamp() > item.expiry) {
-      this.cache.delete(key);
-      this.removeFromAccessOrder(key);
-      this.itemsToCleanup.delete(key);
-      this.missCount++;
+      this.#cache.delete(key);
+      this.#removeFromAccessOrder(key);
+      this.#itemsToCleanup.delete(key);
+      this.#missCount++;
       return null;
     }
 
     // Update last accessed time and move to end of access order
     item.lastAccessed = getCurrentTimestamp();
-    this.moveToEndOfAccessOrder(key);
-    this.hitCount++;
+    this.#moveToEndOfAccessOrder(key);
+    this.#hitCount++;
     return item.data;
   }
 
@@ -87,7 +87,7 @@ export class UnifiedCacheManager<T> {
     const now = getCurrentTimestamp();
     
     // Validate and normalize TTL
-    const normalizedTtl = ttl ?? this.defaultTTL;
+    const normalizedTtl = ttl ?? this.#defaultTTL;
     if (normalizedTtl <= 0) {
       throw new Error('TTL must be greater than 0');
     }
@@ -95,29 +95,26 @@ export class UnifiedCacheManager<T> {
     const expiry = now + normalizedTtl;
 
     // Check if we need to evict items to stay within size limit
-    if (this.cache.size >= this.maxSize) {
-      this.evictOldest();
+    if (this.#cache.size >= this.#maxSize) {
+      this.#evictOldest();
     }
 
     // If item already exists, update it and move to end of access order
-    if (this.cache.has(key)) {
-      this.moveToEndOfAccessOrder(key);
+    if (this.#cache.has(key)) {
+      this.#moveToEndOfAccessOrder(key);
     } else {
       // New item - add to end of access order
-      this.accessOrder.push(key);
+      this.#accessOrder.push(key);
     }
 
-    this.cache.set(key, {
+    this.#cache.set(key, {
       data,
       expiry,
       lastAccessed: now,
       createdAt: now
     });
-
-    // Track items that might need cleanup
-    // Add to cleanup tracking if the item will expire within the cleanup interval
-    if (expiry - now <= this.cleanupInterval) {
-      this.itemsToCleanup.add(key);
+    if (expiry - now <= this.#cleanupInterval) {
+      this.#itemsToCleanup.add(key);
     }
   }
 
@@ -127,10 +124,10 @@ export class UnifiedCacheManager<T> {
    * @returns True if the item was deleted, false if it didn't exist
    */
   delete(key: string): boolean {
-    const deleted = this.cache.delete(key);
+    const deleted = this.#cache.delete(key);
     if (deleted) {
-      this.removeFromAccessOrder(key);
-      this.itemsToCleanup.delete(key);
+      this.#removeFromAccessOrder(key);
+      this.#itemsToCleanup.delete(key);
     }
     return deleted;
   }
@@ -141,15 +138,15 @@ export class UnifiedCacheManager<T> {
    * @returns True if item exists and is not expired
    */
   has(key: string): boolean {
-    const item = this.cache.get(key);
+    const item = this.#cache.get(key);
     if (!item) {
       return false;
     }
 
     if (getCurrentTimestamp() > item.expiry) {
-      this.cache.delete(key);
-      this.removeFromAccessOrder(key);
-      this.itemsToCleanup.delete(key);
+      this.#cache.delete(key);
+      this.#removeFromAccessOrder(key);
+      this.#itemsToCleanup.delete(key);
       return false;
     }
 
@@ -160,11 +157,11 @@ export class UnifiedCacheManager<T> {
    * Clears all items from the cache
    */
   clear(): void {
-    this.cache.clear();
-    this.accessOrder = [];
-    this.itemsToCleanup.clear();
-    this.hitCount = 0;
-    this.missCount = 0;
+    this.#cache.clear();
+    this.#accessOrder = [];
+    this.#itemsToCleanup.clear();
+    this.#hitCount = 0;
+    this.#missCount = 0;
   }
 
   /**
@@ -172,7 +169,7 @@ export class UnifiedCacheManager<T> {
    * @returns Number of items in the cache
    */
   size(): number {
-    return this.cache.size;
+    return this.#cache.size;
   }
 
   /**
@@ -180,16 +177,16 @@ export class UnifiedCacheManager<T> {
    * @returns Cache statistics object
    */
   getStats(): CacheStats {
-    const totalRequests = this.hitCount + this.missCount;
-    const hitRate = totalRequests > 0 ? (this.hitCount / totalRequests) * 100 : 0;
+    const totalRequests = this.#hitCount + this.#missCount;
+    const hitRate = totalRequests > 0 ? (this.#hitCount / totalRequests) * 100 : 0;
 
     return {
-      hits: this.hitCount,
-      misses: this.missCount,
-      size: this.cache.size,
-      maxSize: this.maxSize,
-      ttl: this.defaultTTL,
-      cleanupInterval: this.cleanupInterval,
+      hits: this.#hitCount,
+      misses: this.#missCount,
+      size: this.#cache.size,
+      maxSize: this.#maxSize,
+      ttl: this.#defaultTTL,
+      cleanupInterval: this.#cleanupInterval,
       hitRate
     };
   }
@@ -203,25 +200,25 @@ export class UnifiedCacheManager<T> {
     const now = getCurrentTimestamp();
 
     // If we have items to cleanup, only check those
-    if (this.itemsToCleanup.size > 0) {
-      for (const key of this.itemsToCleanup) {
-        const item = this.cache.get(key);
+    if (this.#itemsToCleanup.size > 0) {
+      for (const key of this.#itemsToCleanup) {
+        const item = this.#cache.get(key);
         if (item && now > item.expiry) {
-          this.cache.delete(key);
-          this.removeFromAccessOrder(key);
-          this.itemsToCleanup.delete(key);
+          this.#cache.delete(key);
+          this.#removeFromAccessOrder(key);
+          this.#itemsToCleanup.delete(key);
           count++;
         } else if (item) {
           // Remove from cleanup list if not expired
-          this.itemsToCleanup.delete(key);
+          this.#itemsToCleanup.delete(key);
         }
       }
     } else {
       // Fallback to checking all items if cleanup list is empty
-      for (const [key, item] of this.cache.entries()) {
+      for (const [key, item] of this.#cache.entries()) {
         if (now > item.expiry) {
-          this.cache.delete(key);
-          this.removeFromAccessOrder(key);
+          this.#cache.delete(key);
+          this.#removeFromAccessOrder(key);
           count++;
         }
       }
@@ -233,23 +230,25 @@ export class UnifiedCacheManager<T> {
   /**
    * Starts the automatic cleanup process
    */
-  private startCleanup(): void {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer);
+  #startCleanup(): void {
+    // Clear any existing timer
+    if (this.#cleanupTimer) {
+      clearInterval(this.#cleanupTimer);
     }
 
-    this.cleanupTimer = setInterval(() => {
+    // Start new cleanup interval using logical assignment for clarity
+    this.#cleanupTimer = setInterval(() => {
       this.cleanup();
-    }, this.cleanupInterval);
+    }, this.#cleanupInterval);
   }
 
   /**
    * Stops the automatic cleanup process
    */
   stopCleanup(): void {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer);
-      this.cleanupTimer = null;
+    if (this.#cleanupTimer) {
+      clearInterval(this.#cleanupTimer);
+      this.#cleanupTimer = null;
     }
   }
 
@@ -257,10 +256,10 @@ export class UnifiedCacheManager<T> {
    * Helper method to remove a key from access order array
    * @param key Key to remove
    */
-  private removeFromAccessOrder(key: string): void {
-    const index = this.accessOrder.indexOf(key);
+  #removeFromAccessOrder(key: string): void {
+    const index = this.#accessOrder.indexOf(key);
     if (index > -1) {
-      this.accessOrder.splice(index, 1);
+      this.#accessOrder.splice(index, 1);
     }
   }
 
@@ -268,24 +267,24 @@ export class UnifiedCacheManager<T> {
    * Helper method to move a key to the end of access order (most recently used)
    * @param key Key to move
    */
-  private moveToEndOfAccessOrder(key: string): void {
-    this.removeFromAccessOrder(key);
-    this.accessOrder.push(key);
+  #moveToEndOfAccessOrder(key: string): void {
+    this.#removeFromAccessOrder(key);
+    this.#accessOrder.push(key);
   }
 
   /**
    * Evicts the oldest item based on last accessed time - O(1) operation
    */
-  private evictOldest(): void {
-    if (this.accessOrder.length === 0) {
+  #evictOldest(): void {
+    if (this.#accessOrder.length === 0) {
       return;
     }
 
     // Remove the oldest item (first in access order)
-    const oldestKey = this.accessOrder.shift();
+    const oldestKey = this.#accessOrder.shift();
     if (oldestKey) {
-      this.cache.delete(oldestKey);
-      this.itemsToCleanup.delete(oldestKey);
+      this.#cache.delete(oldestKey);
+      this.#itemsToCleanup.delete(oldestKey);
     }
   }
 }

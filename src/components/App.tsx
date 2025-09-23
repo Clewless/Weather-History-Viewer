@@ -9,6 +9,7 @@ import { DailyWeatherData, HourlyWeatherData } from '../open-meteo';
 import { NamespaceCacheManager } from '../utils/unifiedCacheManager';
 import { getCurrentDateString, parseDateString } from '../utils/dateUtils';
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, CACHE_TTL } from '../constants';
+import { ValidationError, APIError, NetworkError } from '../errors';
 
 import { MapComponent } from './MapComponent';
 import { DateSelector } from './DateSelector';
@@ -18,6 +19,7 @@ import { TemperatureChart } from './TemperatureChart';
 import { PrecipitationChart } from './PrecipitationChart';
 import { useErrorHandler } from './useErrorHandler';
 import { ErrorBoundary } from './ErrorBoundary';
+import { APIDebugTool } from './APIDebugTool';
 
 import '../styles.css';
 
@@ -37,9 +39,9 @@ const App = () => {
   const { error, handleError, clearError } = useErrorHandler();
 
   // Use refs to track cache managers for proper cleanup
-  const searchCacheRef = useRef<NamespaceCacheManager<Location[]>>(new NamespaceCacheManager<Location[]>(CACHE_TTL.SEARCH, 1000, 60 * 1000));
-  const weatherCacheRef = useRef<NamespaceCacheManager<WeatherData>>(new NamespaceCacheManager<WeatherData>(CACHE_TTL.WEATHER, 1000, 60 * 1000));
-  const reverseGeocodeCacheRef = useRef<NamespaceCacheManager<Location>>(new NamespaceCacheManager<Location>(CACHE_TTL.REVERSE_GEOCODE, 1000, 60 * 1000));
+  const searchCacheRef = useRef<NamespaceCacheManager<Location[]>>(new NamespaceCacheManager<Location[]>(CACHE_TTL.SEARCH, 1_000, 60 * 1_000));
+  const weatherCacheRef = useRef<NamespaceCacheManager<WeatherData>>(new NamespaceCacheManager<WeatherData>(CACHE_TTL.WEATHER, 1_000, 60 * 1_000));
+  const reverseGeocodeCacheRef = useRef<NamespaceCacheManager<Location>>(new NamespaceCacheManager<Location>(CACHE_TTL.REVERSE_GEOCODE, 1_000, 60 * 1_000));
 
   // Create cache managers with different TTLs for different data types
   const _searchCache = searchCacheRef.current;
@@ -93,9 +95,16 @@ const App = () => {
     try {
       const data = await cachedGetWeather(location, start, end);
       setWeatherData(data);
-    } catch {
-      const errorMsg = 'Failed to fetch weather data. Please check your inputs and try again.';
-      handleError(errorMsg);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        handleError(`Invalid input: ${err.message}`, 'error');
+      } else if (err instanceof APIError) {
+        handleError(`API error: ${err.message}`, 'error');
+      } else if (err instanceof NetworkError) {
+        handleError(`Network error: ${err.message}`, 'error');
+      } else {
+        handleError('An unexpected error occurred. Please try again later.', 'error');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -112,8 +121,8 @@ const App = () => {
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
             enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 300000
+            timeout: 10_000,
+            maximumAge: 300_000
           });
         });
         
@@ -257,7 +266,21 @@ const App = () => {
   }, [fetchWeatherData, clearError, handleError, selectedDate, setCurrentLocation]);
 
   useEffect(() => {
+    console.log('[DEBUG] App useEffect triggered:', {
+      currentLocation: currentLocation ? `${currentLocation.name} (${currentLocation.latitude}, ${currentLocation.longitude})` : 'null',
+      selectedDate,
+      hasLocation: !!currentLocation,
+      hasDate: !!selectedDate,
+      dateIsValid: selectedDate ? /^\d{4}-\d{2}-\d{2}$/.test(selectedDate) : false
+    });
+
     if (currentLocation && selectedDate) {
+      console.log('[DEBUG] Calling fetchWeatherData with:', {
+        location: currentLocation.name,
+        startDate: selectedDate,
+        endDate: selectedDate,
+        dateFormat: selectedDate.match(/^\d{4}-\d{2}-\d{2}$/) ? 'valid' : 'invalid'
+      });
       fetchWeatherData(currentLocation, selectedDate, selectedDate);
     }
   }, [currentLocation, selectedDate, fetchWeatherData]);
@@ -284,6 +307,7 @@ const App = () => {
 
   return (
     <ErrorBoundary onError={(error) => handleError(error.message, 'error')}>
+      <APIDebugTool />
       <div className="app-container">
         <header className="header">
           <h1>Weather History Viewer</h1>
