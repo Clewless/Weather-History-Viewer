@@ -9,7 +9,6 @@ import {
   startOfWeek,
   endOfWeek,
   addDays,
-  subDays,
   isSameDay,
   parseISO,
   isValid as isValidDateFn,
@@ -38,14 +37,41 @@ export const parseDateString = (dateStr: string): Date | null => {
   try {
     if (DEBUG_LOGS) console.log('[DEBUG] parseDateString called with:', { dateStr });
 
-    // Add time component for proper parsing if it's just a date
-    const dateTimeStr = dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00.000Z`;
-    if (DEBUG_LOGS) console.log('[DEBUG] parseDateString - dateTimeStr:', { dateTimeStr });
+    // Handle empty or invalid inputs
+    if (!dateStr || typeof dateStr !== 'string') {
+      if (DEBUG_LOGS) console.log('[DEBUG] parseDateString failed: empty or not string');
+      return null;
+    }
 
-    const date = new Date(dateTimeStr);
-    if (DEBUG_LOGS) console.log('[DEBUG] parseDateString - parsed date:', { date, isValid: !isNaN(date.getTime()), timestamp: date.getTime() });
+    // For YYYY-MM-DD format, parse as UTC to ensure we get the exact date at midnight UTC
+    if (!dateStr.includes('T')) {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      
+      // Month is 0-indexed in JavaScript Date constructor
+      const date = new Date(Date.UTC(year, month - 1, day));
+      
+      if (DEBUG_LOGS) console.log('[DEBUG] parseDateString - parsed date:', { date, isValid: !isNaN(date.getTime()), timestamp: date.getTime() });
+      
+      // Check for invalid dates (including edge cases near Unix epoch)
+      if (isNaN(date.getTime())) {
+        return null;
+      }
+      
+      return date;
+    } else {
+      // For datetime strings with 'T', add the time component for proper parsing
+      const dateTimeStr = dateStr.includes('Z') || dateStr.includes('+') ? dateStr : `${dateStr}Z`;
+      const date = new Date(dateTimeStr);
+      
+      if (DEBUG_LOGS) console.log('[DEBUG] parseDateString - parsed date:', { date, isValid: !isNaN(date.getTime()), timestamp: date.getTime() });
 
-    return isNaN(date.getTime()) ? null : date;
+      // Check for invalid dates (including edge cases near Unix epoch)
+      if (isNaN(date.getTime())) {
+        return null;
+      }
+
+      return date;
+    }
   } catch {
     console.warn('Failed to parse date string:', dateStr);
     return null;
@@ -75,6 +101,15 @@ export const isValidDateString = (dateStr: string): boolean => {
     return false;
   }
 
+  // Parse the date components
+  const [year, month, day] = trimmed.split('-').map(Number);
+
+  // Validate date components
+  if (year < 1 || month < 1 || month > 12 || day < 1 || day > 31) {
+    if (DEBUG_LOGS) console.log('[DEBUG] isValidDateString failed: invalid date components');
+    return false;
+  }
+
   // Prefer using date-fns parseISO which handles YYYY-MM-DD reliably
   try {
     const date = parseISO(trimmed);
@@ -83,18 +118,24 @@ export const isValidDateString = (dateStr: string): boolean => {
       return false;
     }
 
-    const [year, month, day] = trimmed.split('-').map(Number);
-    const isValid = (
-      getYear(date) === year &&
-      getMonth(date) === month - 1 &&
-      getDate(date) === day
-    );
+    // More robust validation that handles edge cases near Unix epoch
+    const parsedYear = getYear(date);
+    const parsedMonth = getMonth(date);
+    const parsedDay = getDate(date);
 
-    if (DEBUG_LOGS) console.log('[DEBUG] isValidDateString result:', { isValid, parsedDate: date });
+    // Check if the parsed date matches the expected components
+    const isValid = (parsedYear === year && parsedMonth === month - 1 && parsedDay === day);
+
+    if (DEBUG_LOGS) console.log('[DEBUG] isValidDateString result:', {
+      isValid,
+      parsedDate: date,
+      expected: { year, month, day },
+      actual: { year: parsedYear, month: parsedMonth, day: parsedDay }
+    });
 
     return isValid;
-  } catch {
-    if (DEBUG_LOGS) console.log('[DEBUG] isValidDateString exception');
+  } catch (error) {
+    if (DEBUG_LOGS) console.log('[DEBUG] isValidDateString exception:', error);
     return false;
   }
 };
@@ -106,6 +147,10 @@ export const isValidDateString = (dateStr: string): boolean => {
  * @returns True if valid range, false otherwise
  */
 export const isValidDateRange = (start: string, end: string): boolean => {
+  if (!start || !end || typeof start !== 'string' || typeof end !== 'string') {
+    return false;
+  }
+
   const startDate = parseDateString(start);
   const endDate = parseDateString(end);
 
@@ -113,8 +158,14 @@ export const isValidDateRange = (start: string, end: string): boolean => {
     return false;
   }
 
+  // Check if start is before or equal to end
+  if (startDate > endDate) {
+    return false;
+  }
+
+  // Check if range doesn't exceed 365 days
   const diffDays = differenceInDays(endDate, startDate);
-  return diffDays >= 0 && diffDays <= 365;
+  return diffDays <= 365;
 };
 
 /**
@@ -242,18 +293,29 @@ export const createDate = (year: number, month: number, date: number): Date => {
  */
 export const safeParseDate = (dateStr: string, fallbackTimestamp?: number): Date | null => {
   try {
+    // Handle empty or invalid inputs
+    if (!dateStr || typeof dateStr !== 'string') {
+      if (fallbackTimestamp && fallbackTimestamp > 0) {
+        return startOfDay(createDateFromTimestamp(fallbackTimestamp));
+      }
+      return null;
+    }
+
     const parsed = parseDateString(dateStr);
     if (parsed) {
       return startOfDay(parsed);
     }
 
-    if (fallbackTimestamp) {
+    if (fallbackTimestamp && fallbackTimestamp > 0) {
       return startOfDay(createDateFromTimestamp(fallbackTimestamp));
     }
 
     return null;
   } catch {
-    return fallbackTimestamp ? startOfDay(createDateFromTimestamp(fallbackTimestamp)) : null;
+    if (fallbackTimestamp && fallbackTimestamp > 0) {
+      return startOfDay(createDateFromTimestamp(fallbackTimestamp));
+    }
+    return null;
   }
 };
 
@@ -324,8 +386,21 @@ export const generateCalendarDays = (currentMonth: Date): Date[] => {
  * @returns New date object for the first day of previous month
  */
 export const getPreviousMonth = (currentMonth: Date): Date => {
-  const newMonth = subDays(currentMonth, currentMonth.getDate());
-  return startOfDay(createDate(newMonth.getFullYear(), newMonth.getMonth(), 1));
+  if (!currentMonth || !(currentMonth instanceof Date) || isNaN(currentMonth.getTime())) {
+    return getMinDate();
+  }
+
+  // Create a new date for the first day of the previous month
+  let year = currentMonth.getFullYear();
+  let month = currentMonth.getMonth() - 1; // Go to previous month
+
+  // Handle year boundary
+  if (month < 0) {
+    month = 11; // December
+    year -= 1;
+  }
+
+  return startOfDay(createDate(year, month, 1));
 };
 
 /**
@@ -334,8 +409,21 @@ export const getPreviousMonth = (currentMonth: Date): Date => {
  * @returns New date object for the first day of next month
  */
 export const getNextMonth = (currentMonth: Date): Date => {
-  const newMonth = addDays(currentMonth, 31);
-  return startOfDay(createDate(newMonth.getFullYear(), newMonth.getMonth(), 1));
+  if (!currentMonth || !(currentMonth instanceof Date) || isNaN(currentMonth.getTime())) {
+    return getCurrentDate();
+  }
+
+  // Create a new date for the first day of the next month
+  let year = currentMonth.getFullYear();
+  let month = currentMonth.getMonth() + 1; // Go to next month
+
+  // Handle year boundary
+  if (month > 11) {
+    month = 0; // January
+    year += 1;
+  }
+
+  return startOfDay(createDate(year, month, 1));
 };
 
 /**

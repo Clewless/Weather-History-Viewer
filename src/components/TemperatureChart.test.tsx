@@ -151,7 +151,7 @@ describe('TemperatureChart', () => {
         weatherData={mockWeatherData}
         temperatureUnit="C"
         location={mockLocation}
-        startDate="2023-06-15"
+        startDate="2023-06-15" // Date should match the date in mock data
       />
     );
     await waitFor(() => {
@@ -166,7 +166,7 @@ describe('TemperatureChart', () => {
         weatherData={mockWeatherData}
         temperatureUnit="F"
         location={mockLocation}
-        startDate="2023-06-15"
+        startDate="2023-06-15" // Date should match the date in mock data
       />
     );
     // Just checking that it renders without errors when using Fahrenheit

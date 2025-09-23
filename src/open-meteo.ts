@@ -4,10 +4,19 @@ import tzLookup from 'tz-lookup';
 
 import { APIError, wrapError } from './errors.js';
 import { validateDateRangeWithErrors, validateCoordinatesWithErrors, validateTimezoneWithErrors } from './utils/validation.js';
+import { validateWithZod, safeValidateWithZod } from './utils/zodValidation.js';
 import { getEnvVar } from './utils/env.js';
 import { parseAPITimeString } from './utils/dateUtils.js';
 import { Location } from './types.js';
 import { FALLBACK_LOCATION } from './constants.js';
+// Import Zod schemas
+import {
+  WeatherDataResponseSchema
+} from './schemas/weatherSchema.js';
+import { 
+  LocationSchema, 
+  WeatherLocationSchema
+} from './schemas/locationSchema.js';
 
 /**
  * Core location data required for weather operations
@@ -111,7 +120,19 @@ export const searchLocations = async (query: string): Promise<Location[]> => {
       throw new APIError('Invalid geocoding response: missing or invalid results array', response.status, data);
     }
 
-    return data.results;
+    // Validate each location in the results array
+    const validatedLocations: Location[] = [];
+    for (const location of data.results) {
+      const validationResult = safeValidateWithZod(LocationSchema, location);
+      if (validationResult.success) {
+        validatedLocations.push(validationResult.data as Location);
+      } else {
+        console.warn('Invalid location data received from API:', validationResult.error);
+        // We'll skip invalid locations rather than failing the entire request
+      }
+    }
+
+    return validatedLocations;
   } catch (error: unknown) {
     throw wrapError(error, 'Geocoding search failed');
   }
@@ -134,9 +155,12 @@ export const getHistoricalWeather = async (
   validateCoordinatesWithErrors(location.latitude, location.longitude);
   validateTimezoneWithErrors(location.timezone);
 
+  // Validate the location object with Zod
+  const validatedLocation = validateWithZod(WeatherLocationSchema, location, 'Invalid weather location') as { latitude: number; longitude: number; timezone: string };
+
   const params = {
-    latitude: location.latitude,
-    longitude: location.longitude,
+    latitude: validatedLocation.latitude,
+    longitude: validatedLocation.longitude,
     start_date: startDate,
     end_date: endDate,
     daily: [
@@ -182,7 +206,7 @@ export const getHistoricalWeather = async (
       'windgusts_10m',
       'temperature_80m',
     ].join(','),
-    timezone: location.timezone,
+    timezone: validatedLocation.timezone,
   };
 
   const url = new URL('https://archive-api.open-meteo.com/v1/archive');
@@ -229,7 +253,13 @@ export const getHistoricalWeather = async (
         return date;
     });
 
-    return data;
+    // Validate the response structure with Zod
+    const validatedData = validateWithZod(WeatherDataResponseSchema, {
+      daily: data.daily,
+      hourly: data.hourly
+    }, 'Invalid weather data response');
+
+    return validatedData as { daily: DailyWeatherData; hourly: HourlyWeatherData };
   } catch (error: unknown) {
     throw wrapError(error, 'Weather API request failed');
   }
@@ -269,11 +299,15 @@ export const reverseGeocode = async (
     }
 
     const result = data.results[0];
-    if (!result.latitude || !result.longitude || !result.timezone || !result.name) {
+    
+    // Validate the location data with Zod
+    const validatedLocation = validateWithZod(LocationSchema, result, 'Invalid location data from reverse geocode API') as Location;
+    
+    if (!validatedLocation.latitude || !validatedLocation.longitude || !validatedLocation.timezone || !validatedLocation.name) {
       throw new APIError('Invalid reverse geocode response: missing required location fields', response.status, data);
     }
 
-    return result;
+    return validatedLocation;
   } catch (error: unknown) {
     // Log the error for debugging purposes
     console.error('Reverse geocoding failed:', error instanceof Error ? error.message : error);
@@ -294,9 +328,12 @@ export const reverseGeocode = async (
       isFallback: true as const
     };
 
+    // Validate the fallback location with Zod
+    const validatedFallbackLocation = validateWithZod(LocationSchema, fallbackLocation, 'Invalid fallback location data') as Location;
+    
     // Log when fallback is used
     console.warn(`Using fallback location for coordinates: ${latitude}, ${longitude}`);
 
-    return fallbackLocation;
+    return validatedFallbackLocation;
   }
 };

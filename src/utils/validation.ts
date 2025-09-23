@@ -2,6 +2,8 @@
  * Enhanced validation utilities with sanitization for use across the application
  */
 
+import { escape } from 'validator';
+
 import { ValidationError } from '../errors';
 
 import { getEnvVar } from './env';
@@ -79,13 +81,18 @@ export const validateAndSanitizeSearchQuery = (query: string): string | false =>
   }
 
   const trimmed = query.trim();
-  // Must be between 1 and 100 characters
+  // Must be between 1 and 100 characters (after trimming)
   if (trimmed.length < 1 || trimmed.length > 100) {
     return false;
   }
 
-  // Only allow alphanumeric characters, spaces, commas, hyphens, apostrophes, and periods
-  const allowedChars = /^[a-zA-Z0-9\s,'\-.]+$/;
+  // Reject queries that contain only whitespace
+  if (/^\s*$/.test(trimmed)) {
+    return false;
+  }
+
+  // Only allow alphanumeric characters, spaces, commas, hyphens, and periods (no apostrophes considered dangerous)
+  const allowedChars = /^[a-zA-Z0-9\s,.-]+$/;
   if (!allowedChars.test(trimmed)) {
     return false;
   }
@@ -100,16 +107,38 @@ export const validateAndSanitizeSearchQuery = (query: string): string | false =>
  * @returns True if valid format, false otherwise
  */
 export const validateTimezone = (timezone: string): boolean => {
-  // Basic validation for common timezone formats
-  const timezoneRegex = /^[A-Za-z/_+-]+$/;
+  if (!timezone || typeof timezone !== 'string') {
+    return false;
+  }
+
+  const trimmed = timezone.trim();
+  if (trimmed.length === 0 || trimmed.length > 50) {
+    return false;
+  }
+
+  // Must not start or end with spaces or special characters
+  if (trimmed !== timezone) {
+    return false;
+  }
+
   // Additional validation for common timezone patterns
   const commonTimezones = [
     'UTC', 'GMT', 'EST', 'CST', 'MST', 'PST', 'EDT', 'CDT', 'MDT', 'PDT',
     'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
-    'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Shanghai'
+    'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Shanghai',
+    'Etc/GMT+5', 'Etc/GMT-8', 'Etc/GMT+10'
   ];
-  // Check if it's a common timezone or matches the regex pattern
-  return (timezoneRegex.test(timezone) || commonTimezones.includes(timezone)) && timezone.length <= 50;
+
+  // Check if it's a common timezone first
+  if (commonTimezones.includes(trimmed)) {
+    return true;
+  }
+
+  // For other timezones, use more strict pattern matching
+  // It should be in the format of Area/Location or Etc/GMT+/-offset
+  const timezoneRegex = /^(?:[A-Za-z]+\/[A-Za-z_]+|Etc\/GMT[+-]\d+)$/;
+  
+  return timezoneRegex.test(trimmed);
 };
 
 /**

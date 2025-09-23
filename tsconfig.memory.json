@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "module": "ESNext",
+    "target": "ES2020",
+    "types": ["node"]
+  },
+  "include": [
+    "src/memory-monitor.ts",
+    "src/load-test.ts",
+    "src/memory-profiler.ts",
+    "src/memlab-integration.ts"
+  ]
+}

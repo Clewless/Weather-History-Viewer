@@ -16,6 +16,8 @@ A web application for exploring historical weather data using the Open-Meteo API
 - Comprehensive error handling and validation
 - Environment variable validation
 - Multi-environment CORS configuration
+- **P-Queue Integration**: Enhanced async reliability with rate limiting and concurrency control for all API operations
+- **Advanced Memory Testing**: Built-in Leakage-like memory leak detection with heap snapshots and monitoring
 
 ## Technologies
 

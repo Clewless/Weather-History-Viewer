@@ -8,6 +8,7 @@ import { Location, WeatherDataResponse } from './types';
 import { getEnvVar } from './utils/env';
 import { NetworkError, APIError, ValidationError, wrapError } from './errors';
 import { validateLocationData, validateWeatherData, validateDateRange } from './utils/responseValidator';
+import { addApiTask } from './utils/queue';
 
 // Get API base URL from environment variable with proper validation
 const API_BASE_URL = (() => {
@@ -121,7 +122,13 @@ export const bffSearchLocations = async (query: string): Promise<Location[]> => 
   }
 
   const trimmedQuery = query.trim();
-  const response = await apiCall<Location[]>(`${API_BASE_URL}/search?q=${encodeURIComponent(trimmedQuery)}`);
+
+  // Use queue system for reliable API calls with retry logic
+  const response = await addApiTask<Location[]>(
+    `search-${trimmedQuery}`,
+    async () => await apiCall<Location[]>(`${API_BASE_URL}/search?q=${encodeURIComponent(trimmedQuery)}`),
+    'API_SEARCH'
+  );
 
   // Validate each location in the response
   for (let i = 0; i < response.length; i++) {
@@ -174,9 +181,13 @@ export const bffGetWeather = async (location: Location, startDate: string, endDa
   }
 
   try {
-    // Make API call with enhanced error handling
-    const response = await apiCall<{ daily: DailyWeatherData; hourly: HourlyWeatherData }>(
-      `${API_BASE_URL}/weather?lat=${location.latitude}&lon=${location.longitude}&timezone=${encodeURIComponent(location.timezone)}&start=${startDate}&end=${endDate}`
+    // Make API call with enhanced error handling and queue system
+    const response = await addApiTask<{ daily: DailyWeatherData; hourly: HourlyWeatherData }>(
+      `weather-${location.latitude}-${location.longitude}-${startDate}-${endDate}`,
+      async () => await apiCall<{ daily: DailyWeatherData; hourly: HourlyWeatherData }>(
+        `${API_BASE_URL}/weather?lat=${location.latitude}&lon=${location.longitude}&timezone=${encodeURIComponent(location.timezone)}&start=${startDate}&end=${endDate}`
+      ),
+      'API_WEATHER'
     );
 
     // Validate response structure
@@ -227,8 +238,14 @@ export function validateCoordinates(latitude: number, longitude: number): void {
 export async function bffReverseGeocode(latitude: number, longitude: number): Promise<Location> {
   try {
     validateCoordinates(latitude, longitude);
-    return await apiCall<Location>(
-      `${API_BASE_URL}/reverse-geocode?lat=${latitude}&lon=${longitude}`
+
+    // Use queue system for reliable reverse geocoding with retry logic
+    return await addApiTask<Location>(
+      `geocode-${latitude}-${longitude}`,
+      async () => await apiCall<Location>(
+        `${API_BASE_URL}/reverse-geocode?lat=${latitude}&lon=${longitude}`
+      ),
+      'API_GEOCODE'
     );
   } catch (error: unknown) {
     throw wrapError(error, 'Reverse geocode failed');

@@ -10,13 +10,12 @@ import { escape } from 'validator';
 import { ValidationError, createErrorResponse, NetworkError, wrapError } from './errors.js';
 import { getEnvVar, validateEnvVars } from './utils/env.js';
 import { createCorsMiddleware } from './utils/cors.js';
-import { getParams } from './utils/params.js';
 import {
   validateDateRangeWithErrors,
   validateCoordinatesWithErrors,
-  validateSearchQueryWithErrors,
   validateTimezoneWithErrors
 } from './utils/validation.js';
+import { validateWithZod } from './utils/zodValidation.js';
 import { NamespaceCacheManager } from './utils/unifiedCacheManager.js';
 import {
   searchLocations,
@@ -28,6 +27,12 @@ import {
 import { Location as GeoLocation } from './types/location.js';
 import { getCurrentISODate } from './utils/dateUtils.js';
 import { CACHE_TTL, RATE_LIMITS } from './constants.js';
+// Import Zod schemas
+import { 
+  SearchAPIParamsSchema, 
+  WeatherAPIRequestSchema, 
+  ReverseGeocodeAPIParamsSchema 
+} from './schemas/apiSchema.js';
 
 // Load environment variables from .env file
 config();
@@ -171,12 +176,9 @@ app.get('/api/debug-config', (req, res) => {
  */
 app.get('/api/search', async (req, res) => {
   try {
-    // Validate query parameter exists and extract it
-    const { q: query } = getParams(req.query, {
-      q: { type: 'string' }
-    }) as { q: string };
-
-    validateSearchQueryWithErrors(query);
+    // Validate and sanitize query parameters using Zod
+    const validatedParams = validateWithZod(SearchAPIParamsSchema, req.query, 'Invalid search parameters') as { q: string };
+    const { q: query } = validatedParams;
 
     // Check cache first
     const cachedResult = cache.get('search', query);
@@ -209,14 +211,9 @@ app.get('/api/search', async (req, res) => {
  */
 app.get('/api/weather', async (req, res) => {
   try {
-    // Extract and validate required parameters in one step
-    const { lat, lon, start, end, timezone } = getParams(req.query, {
-      lat: { type: 'number' },
-      lon: { type: 'number' },
-      start: { type: 'string' },
-      end: { type: 'string' },
-      timezone: { type: 'string' }
-    }) as { lat: number; lon: number; start: string; end: string; timezone: string };
+    // Validate and sanitize query parameters using Zod
+    const validatedParams = validateWithZod(WeatherAPIRequestSchema, req.query, 'Invalid weather parameters') as { lat: number; lon: number; start: string; end: string; timezone: string };
+    const { lat, lon, start, end, timezone } = validatedParams;
 
     // Normalize/trim date strings to avoid accidental whitespace or encoding artifacts
     const startTrim = start.trim();
@@ -237,42 +234,6 @@ app.get('/api/weather', async (req, res) => {
       endIsString: typeof end === 'string'
     });
 
-    // Validate all parameters exist and are valid
-    if (!lat) {
-      return res.status(400).json(createErrorResponse(
-        new ValidationError('Latitude parameter "lat" is required and must be a valid number', 'lat'),
-        400
-      ));
-    }
-    
-    if (!lon) {
-      return res.status(400).json(createErrorResponse(
-        new ValidationError('Longitude parameter "lon" is required and must be a valid number', 'lon'),
-        400
-      ));
-    }
-    
-    if (!start) {
-      return res.status(400).json(createErrorResponse(
-        new ValidationError('Start date parameter "start" is required and must be a valid string', 'start'),
-        400
-      ));
-    }
-    
-    if (!end) {
-      return res.status(400).json(createErrorResponse(
-        new ValidationError('End date parameter "end" is required and must be a valid string', 'end'),
-        400
-      ));
-    }
-    
-    if (!timezone) {
-      return res.status(400).json(createErrorResponse(
-        new ValidationError('Timezone parameter "timezone" is required and must be a valid string', 'timezone'),
-        400
-      ));
-    }
-
     // Validate coordinates
     validateCoordinatesWithErrors(lat, lon);
 
@@ -280,11 +241,11 @@ app.get('/api/weather', async (req, res) => {
     validateTimezoneWithErrors(timezone);
 
     // Validate date range
-  console.log(`[DEBUG] Date validation - start: "${startTrim}", end: "${endTrim}"`);
-  validateDateRangeWithErrors(startTrim as string, endTrim as string);
+    console.log(`[DEBUG] Date validation - start: "${startTrim}", end: "${endTrim}"`);
+    validateDateRangeWithErrors(startTrim, endTrim);
 
     // Check cache first
-  const cacheKey = `${lat}:${lon}:${startTrim}:${endTrim}:${timezone}`;
+    const cacheKey = `${lat}:${lon}:${startTrim}:${endTrim}:${timezone}`;
     const cachedResult = cache.get('weather', cacheKey);
     if (cachedResult) {
       return res.json(cachedResult);
@@ -292,8 +253,8 @@ app.get('/api/weather', async (req, res) => {
 
     const weather = await getHistoricalWeather(
       { latitude: lat, longitude: lon, timezone },
-      startTrim as string,
-      endTrim as string
+      startTrim,
+      endTrim
     );
     
     // Cache the result
@@ -316,11 +277,9 @@ app.get('/api/weather', async (req, res) => {
  */
 app.get('/api/reverse-geocode', async (req, res) => {
   try {
-    // Extract and validate required parameters
-    const { lat, lon } = getParams(req.query, {
-      lat: { type: 'number' },
-      lon: { type: 'number' }
-    }) as { lat: number; lon: number };
+    // Validate and sanitize query parameters using Zod
+    const validatedParams = validateWithZod(ReverseGeocodeAPIParamsSchema, req.query, 'Invalid reverse geocode parameters') as { lat: number; lon: number };
+    const { lat, lon } = validatedParams;
 
     // Validate coordinates
     validateCoordinatesWithErrors(lat, lon);
