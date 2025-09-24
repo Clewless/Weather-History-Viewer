@@ -49,11 +49,18 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
 
     const effectiveStartDate = startDate || getCurrentDateString();
     const localData = getLocalDayHours(weatherData.hourly, location, effectiveStartDate);
+    console.log('[DEBUG] TemperatureChart: localData', {
+      tempsLength: localData.temps.length,
+      timesLength: localData.times.length,
+      startDate: effectiveStartDate,
+      location: location?.name
+    });
     const temperatures = localData.temps.map((temp: number) =>
       temperatureUnit === 'F' ? (temp * FAHRENHEIT_CONVERSION_FACTOR) + FAHRENHEIT_CONVERSION_OFFSET : temp
     );
 
     if (temperatures.length === 0) {
+      console.log('[DEBUG] TemperatureChart: No temperatures data, skipping render');
       return;
     }
 
@@ -184,7 +191,7 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
       <div class="chart-container">
         <h4>Temperature</h4>
         <div class="chart-placeholder">
-          <p>Select a location and date range to view temperature chart</p>
+          <p>Select a location and date to view daily temperature chart</p>
         </div>
       </div>
     );

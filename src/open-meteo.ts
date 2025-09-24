@@ -235,6 +235,14 @@ export const getHistoricalWeather = async (
       throw new APIError('Invalid weather response: time arrays missing or invalid', response.status, data);
     }
 
+    console.log('[DEBUG] open-meteo: Raw API time formats', {
+      dailyTimeSample: data.daily.time[0],
+      hourlyTimeSample: data.hourly.time[0],
+      timezone: params.timezone,
+      startDate: params.start_date,
+      endDate: params.end_date
+    });
+
     // Process time for daily data with validation
     data.daily.time = data.daily.time.map((t: string) => {
         const date = parseAPITimeString(t);
@@ -316,7 +324,7 @@ export const reverseGeocode = async (
     // If reverse geocoding fails, we'll create a fallback location
     // Create a fallback location with detected timezone from coordinates
     const fallbackLocation: Location = {
-      id: FALLBACK_LOCATION.ID,
+      id: 1, // Use positive ID to satisfy schema
       name: `Location at ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
       latitude,
       longitude,

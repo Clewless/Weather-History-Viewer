@@ -35,6 +35,7 @@ const App = () => {
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [temperatureUnit, setTemperatureUnit] = useState<'C' | 'F'>('F');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const { error, handleError, clearError } = useErrorHandler();
 
   // Use refs to track cache managers for proper cleanup
@@ -132,7 +133,7 @@ const App = () => {
         } catch {
           handleError('Could not determine your exact location. Using coordinates.', 'warning');
           const fallbackLocation: Location = {
-            id: 0,
+            id: 1, // Positive ID for schema
             name: `Your location (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`,
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -140,7 +141,7 @@ const App = () => {
             feature_code: 'PPL',
             country_code: 'XX',
             timezone: 'UTC',
-            country: 'Unknown'
+            country: ''
           };
           setCurrentLocation(fallbackLocation);
         }
@@ -179,7 +180,19 @@ const App = () => {
       setCurrentLocation(location);
       // fetch triggered by useEffect
     } catch {
-      handleError('Failed to get location from map click');
+      handleError('Could not determine location name. Using coordinates.', 'warning');
+      const fallbackLocation: Location = {
+        id: 0,
+        name: `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+        latitude: lat,
+        longitude: lng,
+        elevation: 0,
+        feature_code: 'PPL',
+        country_code: 'XX',
+        timezone: 'UTC',
+        country: 'Unknown'
+      };
+      setCurrentLocation(fallbackLocation);
     } finally {
       setIsLoading(false);
     }
@@ -304,24 +317,73 @@ const App = () => {
   }, []); // Empty dependency array since we want this to run only on unmount
 
 
+  // Initialize dark mode from localStorage or system preference
+  useEffect(() => {
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      try {
+        const savedDarkMode = localStorage.getItem('darkMode');
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        
+        if (savedDarkMode !== null) {
+          setIsDarkMode(savedDarkMode === 'true');
+        } else {
+          setIsDarkMode(systemPrefersDark);
+        }
+      } catch (error) {
+        console.warn('Could not access localStorage, using system preference:', error);
+        setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
+      }
+    }
+  }, []);
+
+  // Apply dark mode class to body
+  useEffect(() => {
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      try {
+        if (isDarkMode) {
+          document.body.classList.add('dark-mode');
+        } else {
+          document.body.classList.remove('dark-mode');
+        }
+        localStorage.setItem('darkMode', isDarkMode.toString());
+      } catch (error) {
+        console.warn('Could not save dark mode preference:', error);
+      }
+    }
+  }, [isDarkMode]);
+
+  const toggleDarkMode = useCallback(() => {
+    setIsDarkMode(prev => !prev);
+  }, []);
+
   return (
     <ErrorBoundary onError={(error) => handleError(error.message, 'error')}>
       <div className="app-container">
+        <button
+          onClick={toggleDarkMode}
+          className="theme-toggle"
+          aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+          title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {isDarkMode ? (
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+            </svg>
+          )}
+        </button>
+        
         <header className="header">
           <h1>Weather History Viewer</h1>
           <p>Explore historical weather data from 1940 to present</p>
         </header>
 
-        {error && (
+        {error && !isLoading && (
           <div className={`error-message ${error.type}`} role="alert">
             <div>{error.message}</div>
-          </div>
-        )}
-
-        {isLoading && (
-          <div className="loading-message" role="status" aria-live="polite">
-            <span className="loading-spinner"></span>
-            Loading weather data...
           </div>
         )}
 
@@ -362,33 +424,55 @@ const App = () => {
           </div>
         </div>
 
-        {!isLoading && !error?.message && (
-          <div className="weather-section">
-            <ErrorBoundary>
-              <WeatherDisplay
-                weatherData={weatherData}
-                location={currentLocation}
-                temperatureUnit={temperatureUnit}
-                onTemperatureUnitChange={handleTemperatureUnitChange}
-                aria-label="Weather display for selected location and date range"
-              />
-            </ErrorBoundary>
-            <ErrorBoundary>
-              <TemperatureChart
-                weatherData={weatherData}
-                temperatureUnit={temperatureUnit}
-                aria-label="Temperature chart"
-              />
-            </ErrorBoundary>
-            <ErrorBoundary>
-              <PrecipitationChart
-                weatherData={weatherData}
-                temperatureUnit={temperatureUnit}
-                aria-label="Precipitation chart"
-              />
-            </ErrorBoundary>
-          </div>
-        )}
+        <div className="weather-section">
+          {isLoading ? (
+            <div className="skeleton-container" role="status" aria-live="polite">
+              <div className="skeleton skeleton-title"></div>
+              <div className="skeleton skeleton-card"></div>
+              <div className="skeleton skeleton-chart"></div>
+              <div className="skeleton skeleton-chart"></div>
+            </div>
+          ) : (
+            <>
+              {!error?.message && (
+                <>
+                  <ErrorBoundary>
+                    <WeatherDisplay
+                      weatherData={weatherData}
+                      location={currentLocation}
+                      temperatureUnit={temperatureUnit}
+                      onTemperatureUnitChange={handleTemperatureUnitChange}
+                      aria-label="Weather display for selected location and date range"
+                    />
+                  </ErrorBoundary>
+                  <ErrorBoundary>
+                    <TemperatureChart
+                      weatherData={weatherData}
+                      temperatureUnit={temperatureUnit}
+                      location={currentLocation}
+                      startDate={selectedDate}
+                      aria-label="Daily temperature chart"
+                    />
+                  </ErrorBoundary>
+                  <ErrorBoundary>
+                    <PrecipitationChart
+                      weatherData={weatherData}
+                      temperatureUnit={temperatureUnit}
+                      location={currentLocation}
+                      startDate={selectedDate}
+                      aria-label="Daily precipitation chart"
+                    />
+                  </ErrorBoundary>
+                </>
+              )}
+              {error?.message && (
+                <div className="error-message error" role="alert">
+                  <div>{error.message}</div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </ErrorBoundary>
   );

@@ -4,7 +4,7 @@ import type { JSX } from 'preact/jsx-runtime';
 
 import { DailyWeatherData, HourlyWeatherData } from '../open-meteo.js';
 import { Location } from '../types.js';
-import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
+import { formatLocalTime } from '../utils/weatherUtils';
 import { parseDateString } from '../utils/dateUtils';
 
 interface WeatherDisplayProps {
@@ -155,18 +155,89 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
           {weatherData?.daily?.time?.length ? weatherData.daily.time.map((time: Date | string, index: number) => {
             const date = typeof time === 'string' ? parseDateString(time) : time;
             if (!date) return null;
+            
+            const maxTemp = weatherData.daily.temperature_2m_max?.[index] ?? 0;
+            const minTemp = weatherData.daily.temperature_2m_min?.[index] ?? 0;
+            const maxTempFormatted = formatTemperature(maxTemp);
+            const minTempFormatted = formatTemperature(minTemp);
+            const precip = weatherData.daily.precipitation_sum?.[index] ?? 0;
+            const windSpeed = weatherData.daily.windspeed_10m_max?.[index] ?? 0;
+            const humidity = weatherData.daily.precipitation_hours?.[index] ?? 0; // Using precipitation_hours as humidity proxy
+            const sunrise = weatherData.daily.sunrise?.[index];
+            const sunset = weatherData.daily.sunset?.[index];
+            
+            // Determine temperature color based on max temp
+            const getTempColor = (temp: number) => {
+              const convertedTemp = convertTemperature(temp);
+              if (convertedTemp >= 90) return 'var(--danger)'; // Very hot
+              if (convertedTemp >= 80) return 'var(--warning)'; // Hot
+              if (convertedTemp >= 65) return 'var(--sunny)'; // Warm
+              if (convertedTemp >= 50) return 'var(--success)'; // Mild
+              if (convertedTemp >= 32) return 'var(--info)'; // Cool
+              return 'var(--primary)'; // Cold
+            };
+            
             return (
               <div key={index} class="daily-item" role="gridcell">
-                <div class="daily-date">{formatDate(date)}</div>
-                <div class="daily-icon" aria-label={getWeatherDescription(weatherData.daily.weathercode?.[index] ?? 0)}>
-                  {getWeatherIcon(weatherData.daily.weathercode?.[index] ?? 0)}
+                {/* Date and Weather Icon */}
+                <div class="daily-header">
+                  <div class="daily-date">{formatDate(date)}</div>
+                  <div class="daily-icon" aria-label={getWeatherDescription(weatherData.daily.weathercode?.[index] ?? 0)}>
+                    {getWeatherIcon(weatherData.daily.weathercode?.[index] ?? 0)}
+                  </div>
                 </div>
-                <div class="daily-temp">
-                  {formatTemperature(weatherData.daily.temperature_2m_max?.[index] ?? 0)}°
-                  /{formatTemperature(weatherData.daily.temperature_2m_min?.[index] ?? 0)}°
+                
+                {/* Horizontal Temperature Display */}
+                <div class="temperature-section">
+                  <div class="temp-display">
+                    <div class="temp-high">
+                      <span class="temp-value" style={{ color: getTempColor(maxTemp) }}>
+                        {maxTempFormatted}°
+                      </span>
+                      <span class="temp-label">H</span>
+                    </div>
+                    <div class="temp-range">
+                      <span class="temp-min" style={{ color: getTempColor(minTemp) }}>
+                        {minTempFormatted}°
+                      </span>
+                      <span class="temp-divider">—</span>
+                    </div>
+                    <div class="temp-low">
+                      <span class="temp-label">L</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="daily-precip">
-                  {formatPrecipitation(weatherData.daily.precipitation_sum?.[index] ?? 0)}mm
+                
+                {/* Horizontal Weather Details */}
+                <div class="weather-details">
+                  <div class="detail-item precip">
+                    <span class="detail-icon">💧</span>
+                    <span class="detail-value">{formatPrecipitation(precip)}mm</span>
+                  </div>
+                  <div class="detail-item wind">
+                    <span class="detail-icon">💨</span>
+                    <span class="detail-value">{windSpeed.toFixed(0)} km/h</span>
+                  </div>
+                  <div class="detail-item humidity">
+                    <span class="detail-icon">💧</span>
+                    <span class="detail-value">{humidity.toFixed(0)}%</span>
+                  </div>
+                </div>
+                
+                {/* Horizontal Sun Times */}
+                <div class="sun-times">
+                  {sunrise && (
+                    <div class="sun-time">
+                      <span class="sun-icon">🌅</span>
+                      <span class="sun-time-text">{formatTime(sunrise, location?.timezone || 'UTC').split(' ')[0]}</span>
+                    </div>
+                  )}
+                  {sunset && (
+                    <div class="sun-time">
+                      <span class="sun-icon">🌇</span>
+                      <span class="sun-time-text">{formatTime(sunset, location?.timezone || 'UTC').split(' ')[0]}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -174,33 +245,6 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
         </div>
       </div>
   
-      {/* Hourly Weather */}
-      <div class="hourly-weather">
-        <h4>Hourly Details</h4>
-        <div class="hourly-grid" role="grid" aria-label="Hourly weather grid">
-          {(() => {
-            const firstTime = weatherData?.daily.time[0];
-            const startDate = firstTime ?
-              (typeof firstTime === 'string' ? firstTime : firstTime.toISOString()).split('T')[0] :
-              '';
-            const localHours = getLocalDayHours(weatherData.hourly, location || { timezone: 'UTC' } as Location, startDate);
-            return localHours.times.length > 0 ? localHours.times.map((time: string, index: number) => (
-              <div key={index} class="hourly-item" role="gridcell">
-                <div class="hourly-time">{formatTime(time, location?.timezone ?? 'UTC')}</div>
-                <div class="hourly-icon" aria-label={getWeatherDescription(localHours.codes[index])}>
-                  {getWeatherIcon(localHours.codes[index])}
-                </div>
-                <div class="hourly-temp">
-                  {Math.round(convertTemperature(localHours.temps[index]))}°
-                </div>
-                <div class="hourly-precip">
-                  {localHours.precip[index]}mm
-                </div>
-              </div>
-            )) : <p>No hourly data available</p>;
-          })()}
-        </div>
-      </div>
     </div>
   );
 };

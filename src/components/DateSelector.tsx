@@ -35,6 +35,7 @@ export const DateSelector = ({
   // Generate calendar days
   const [calendarDays, setCalendarDays] = useState<Date[]>([]);
   const [currentMonth, setCurrentMonth] = useState(getCurrentDate());
+  const [showCalendar, setShowCalendar] = useState(false);
   
   useEffect(() => {
     setCalendarDays(generateCalendarDays(currentMonth));
@@ -89,54 +90,77 @@ export const DateSelector = ({
           }}
           aria-label="Selected date"
         />
+        <button
+          type="button"
+          class="calendar-toggle"
+          onClick={() => setShowCalendar(!showCalendar)}
+          disabled={loading}
+          aria-label="Toggle calendar"
+        >
+          📅
+        </button>
       </div>
       
       {/* Calendar popup */}
-      <div class="calendar-popup" role="dialog" aria-modal="true" aria-label="Calendar">
-        <div class="calendar-header">
-          <button
-            type="button"
-            class="calendar-nav"
-            onClick={handlePrevMonth}
-            aria-label="Previous month"
-          >
-            ‹
-          </button>
-          <div class="calendar-month">
-            {getMonthName(currentMonth)}
-          </div>
-          <button
-            type="button"
-            class="calendar-nav"
-            onClick={handleNextMonth}
-            aria-label="Next month"
-          >
-            ›
-          </button>
-        </div>
-        
-        <div class="calendar-grid">
-          {/* Day headers */}
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-            <div key={day} class="calendar-day-header">{day}</div>
-          ))}
-          
-          {/* Calendar days */}
-          {calendarDays.map((date, index) => (
+      {showCalendar && (
+        <div class="calendar-popup" role="dialog" aria-modal="true" aria-label="Calendar">
+          <div class="calendar-header">
             <button
-              key={index}
               type="button"
-              class={`calendar-day ${!isCurrentMonth(date, currentMonth) ? 'other-month' : ''} ${isSelectedDate(date) ? 'selected' : ''} ${isToday(date) ? 'today' : ''}`}
-              onClick={() => handleDateSelect(date)}
-              disabled={date < minDate || date > maxDate || loading}
-              aria-label={formatDateForDisplay(date)}
-              aria-pressed={isSelectedDate(date)}
+              class="calendar-nav"
+              onClick={handlePrevMonth}
+              aria-label="Previous month"
             >
-              {date.getDate()}
+              ‹
             </button>
-          ))}
+            <div class="calendar-month">
+              {getMonthName(currentMonth)}
+            </div>
+            <button
+              type="button"
+              class="calendar-nav"
+              onClick={handleNextMonth}
+              aria-label="Next month"
+            >
+              ›
+            </button>
+          </div>
+          
+          <div class="calendar-grid">
+            {/* Day headers */}
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+              <div key={day} class="calendar-day-header">{day}</div>
+            ))}
+            
+            {/* Calendar days */}
+            {calendarDays.map((date, index) => (
+              <button
+                key={index}
+                type="button"
+                class={`calendar-day ${!isCurrentMonth(date, currentMonth) ? 'other-month' : ''} ${isSelectedDate(date) ? 'selected' : ''} ${isToday(date) ? 'today' : ''}`}
+                onClick={() => {
+                  handleDateSelect(date);
+                  setShowCalendar(false);
+                }}
+                disabled={date < minDate || date > maxDate || loading}
+                aria-label={formatDateForDisplay(date)}
+                aria-pressed={isSelectedDate(date)}
+              >
+                {date.getDate()}
+              </button>
+            ))}
+          </div>
+          <div class="calendar-footer">
+            <button
+              type="button"
+              class="close-calendar"
+              onClick={() => setShowCalendar(false)}
+            >
+              Close
+            </button>
+          </div>
         </div>
-      </div>
+      )}
       
       {loading && (
         <div class="loading" role="status" aria-live="polite">
