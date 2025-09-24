@@ -29,11 +29,22 @@ export default (env, argv) => {
       path: path.resolve(process.cwd(), 'dist/client')
     },
     resolve: {
-      extensions: ['.ts', '.tsx', '.js'],
+      extensions: ['.ts', '.tsx', '.js', '.jsx'],
       alias: {
         // Alias React to Preact for compatibility
         react: 'preact/compat',
         'react-dom': 'preact/compat'
+      },
+      // Add mainFields to prioritize TypeScript-compatible fields
+      mainFields: ['browser', 'module', 'main'],
+      // For browser builds, fallback Node.js built-ins to empty modules or alternatives
+      fallback: {
+        "v8": false,        // Disable v8 for browser builds
+        "perf_hooks": false, // Disable perf_hooks for browser builds
+        "fs": false,        // Disable fs for browser builds
+        "path": false,      // Disable path for browser builds
+        "os": false,        // Disable os for browser builds
+        "crypto": false,    // Disable crypto for browser builds
       }
     },
     module: {
@@ -83,7 +94,34 @@ export default (env, argv) => {
       open: true,
       historyApiFallback: true
     },
-     optimization: {
+    externals: isProduction ? {
+      // Only use externals for production server builds, not for browser builds
+      'v8': 'commonjs v8',
+      'perf_hooks': 'commonjs perf_hooks',
+      'events': 'commonjs events',
+      'fs': 'commonjs fs',
+      'path': 'commonjs path',
+      'os': 'commonjs os',
+      'crypto': 'commonjs crypto',
+      'child_process': 'commonjs child_process',
+      'cluster': 'commonjs cluster',
+      'dgram': 'commonjs dgram',
+      'dns': 'commonjs dns',
+      'http2': 'commonjs http2',
+      'https': 'commonjs https',
+      'module': 'commonjs module',
+      'net': 'commonjs net',
+      'readline': 'commonjs readline',
+      'repl': 'commonjs repl',
+      'stream': 'commonjs stream',
+      'string_decoder': 'commonjs string_decoder',
+      'tls': 'commonjs tls',
+      'tty': 'commonjs tty',
+      'url': 'commonjs url',
+      'util': 'commonjs util',
+      'zlib': 'commonjs zlib'
+    } : {},
+    optimization: {
        splitChunks: {
          chunks: 'all',
          cacheGroups: {

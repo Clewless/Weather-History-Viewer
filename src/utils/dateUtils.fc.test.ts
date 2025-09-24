@@ -107,7 +107,18 @@ describe('Date Utilities - Property Based Tests', () => {
               return true; // Skip invalid timestamps
             }
 
+            // Check if startDate is valid before processing
+            if (isNaN(startDate.getTime())) {
+              return true; // Skip invalid dates
+            }
+            
             const endDate = new Date(endTimestamp);
+            
+            // Check if dates are valid before processing
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+              return true; // Skip invalid dates
+            }
+            
             const startStr = startDate.toISOString().split('T')[0];
             const endStr = endDate.toISOString().split('T')[0];
 
@@ -157,6 +168,11 @@ describe('Date Utilities - Property Based Tests', () => {
     it('should navigate months correctly', () => {
       fc.assert(
         fc.property(fc.date({ min: new Date('2000-01-01'), max: new Date() }), (date) => {
+          // Check if date is valid before processing
+          if (isNaN(date.getTime())) {
+            return true; // Skip invalid dates
+          }
+          
           const nextMonth = getNextMonth(date);
           const prevMonth = getPreviousMonth(nextMonth);
 

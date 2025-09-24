@@ -4,7 +4,7 @@ import type { JSX } from 'preact/jsx-runtime';
 import { useEffect, useRef } from 'preact/hooks';
 
 import { DailyWeatherData, HourlyWeatherData } from '../open-meteo.js';
-import { Location } from '../types';
+import { Location } from '../types.js';
 import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
 import { getCurrentDateString } from '../utils/dateUtils';
 

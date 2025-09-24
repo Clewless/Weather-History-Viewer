@@ -57,7 +57,7 @@ describe('Validation Utilities - Property Based Tests', () => {
       fc.assert(
         fc.property(
           fc.string({ minLength: 1, maxLength: 100 }).filter(str =>
-            /^[a-zA-Z0-9\s,'\-.]+$/.test(str) && !/^\s*$/.test(str.trim())
+            /^[-a-zA-Z0-9\s,.'.]+$/.test(str) && !/^\s*$/.test(str.trim())
           ),
           (query) => {
             const result = validateAndSanitizeSearchQuery(query);

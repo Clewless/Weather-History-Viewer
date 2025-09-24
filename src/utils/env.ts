@@ -157,6 +157,10 @@ export function validateEnvVars(): void {
     } catch (error: unknown) {
       if (error instanceof ConfigurationError) {
         errors.push(error.message);
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errors.push((error as Error).message);
+      } else {
+        errors.push(`Unknown error occurred while validating environment variable ${name}`);
       }
     }
   }

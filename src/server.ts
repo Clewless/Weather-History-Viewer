@@ -5,7 +5,6 @@ import express from 'express';
 import helmet from 'helmet';
 import { config } from 'dotenv';
 import rateLimit from 'express-rate-limit';
-import { escape } from 'validator';
 
 import { ValidationError, createErrorResponse, NetworkError, wrapError } from './errors.js';
 import { getEnvVar, validateEnvVars } from './utils/env.js';
@@ -28,11 +27,28 @@ import { Location as GeoLocation } from './types/location.js';
 import { getCurrentISODate } from './utils/dateUtils.js';
 import { CACHE_TTL, RATE_LIMITS } from './constants.js';
 // Import Zod schemas
-import { 
-  SearchAPIParamsSchema, 
-  WeatherAPIRequestSchema, 
-  ReverseGeocodeAPIParamsSchema 
+import {
+  SearchAPIParamsSchema,
+  WeatherAPIRequestSchema,
+  ReverseGeocodeAPIParamsSchema
 } from './schemas/apiSchema.js';
+// Import memory monitoring
+import { MemoryLeakTester } from './memory-leak-tester.js';
+
+/**
+ * Simple HTML escaping function to prevent XSS
+ */
+const escapeHtml = (str: string): string => {
+  if (typeof str !== 'string') {
+    return String(str);
+  }
+ return str
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"')
+    .replace(/'/g, '&#x27;');
+};
 
 // Load environment variables from .env file
 config();
@@ -96,6 +112,20 @@ type CacheData = GeoLocation[] | { daily: DailyWeatherData; hourly: HourlyWeathe
 // Create a unified cache manager
 const cache = new NamespaceCacheManager<CacheData>(CACHE_TTL.SERVER_DEFAULT, 1000, 5 * 60 * 1000);
 
+// Initialize memory monitoring
+console.log('🔍 Memory leak detection activated');
+
+// Create memory leak tester for API monitoring
+const apiMemoryTester = new MemoryLeakTester({
+  iterations: 1000,
+  leakThreshold: 50, // 50MB threshold for overall memory monitoring
+  snapshotInterval: 100,
+  verbose: nodeEnv === 'development',
+  enableGc: true
+});
+
+console.log('🧪 Memory testing initialized with leak threshold: 50MB');
+
 // Create CORS middleware with environment-specific configuration
 const corsMiddleware = createCorsMiddleware(nodeEnv, corsOrigins, frontendPort);
 app.use(corsMiddleware);
@@ -108,6 +138,7 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
 
 // Apply rate limiting to specific API routes
 app.use('/api/search', apiLimiter);
@@ -123,6 +154,7 @@ const weatherLimiter = rateLimit({
 });
 
 app.use('/api/weather', weatherLimiter);
+
 
 /**
  * Health check endpoint
@@ -186,10 +218,10 @@ app.get('/api/search', async (req, res) => {
       return res.json(cachedResult);
     }
 
-    // Additional sanitization for security
-    const sanitizedQuery = escape(query.trim());
-
-    const locations = await searchLocations(sanitizedQuery);
+       // Additional sanitization for security
+       const sanitizedQuery = escapeHtml(query.trim());
+   
+       const locations = await searchLocations(sanitizedQuery);
     
     // Cache the result
     cache.set('search', query, locations);
@@ -400,8 +432,22 @@ const gracefulShutdown = (signal: string) => {
     try {
       cache.stopCleanup();
       console.log('Cache cleanup stopped');
+
+      // Stop memory monitoring
+      apiMemoryTester.reset();
+      console.log('Memory leak detection stopped');
+
+      // Force final garbage collection
+      if (typeof global.gc === 'function') {
+        try {
+          global.gc();
+          console.log('Final garbage collection completed');
+        } catch {
+          // GC might not be available in all environments
+        }
+      }
     } catch (error) {
-      console.error('Error stopping cache cleanup:', error);
+      console.error('Error during cleanup:', error);
     }
 
     // Step 3: Clear any remaining intervals or timeouts

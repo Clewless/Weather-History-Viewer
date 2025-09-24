@@ -2,12 +2,31 @@
  * Enhanced validation utilities with sanitization for use across the application
  */
 
-import { escape } from 'validator';
+import invariant from 'tiny-invariant';
+
+/**
+ * Simple HTML escaping function to prevent XSS
+ */
+const escapeHtml = (str: string): string => {
+  if (typeof str !== 'string') {
+    return String(str);
+  }
+  return str
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"')
+    .replace(/'/g, '&#x27;');
+};
 
 import { ValidationError } from '../errors';
 
 import { getEnvVar } from './env';
 import { parseDateString, isValidDateString, isValidDateRange } from './dateUtils';
+import {
+  validateString,
+  validateNumber
+} from './invariants';
 
 // Control verbose logging via environment variable. Default: false
 const DEBUG_LOGS = getEnvVar('DEBUG_LOGS') === 'true';
@@ -28,18 +47,22 @@ export const isValidDateStringGuard = (dateStr: unknown): dateStr is `${number}-
  * @returns True if both coordinates are valid numbers within range, false otherwise
  */
 export const isValidCoordinateGuard = (lat: unknown, lng: unknown): boolean => {
-  // Convert to numbers if they're strings
-  const latitude = typeof lat === 'string' ? parseFloat(lat) : lat;
-  const longitude = typeof lng === 'string' ? parseFloat(lng) : lng;
+  try {
+    // Convert to numbers if they're strings
+    const latitude = typeof lat === 'string' ? parseFloat(lat) : lat;
+    const longitude = typeof lng === 'string' ? parseFloat(lng) : lng;
 
-  // Check if they're valid numbers
-  if (typeof latitude !== 'number' || isNaN(latitude) ||
-      typeof longitude !== 'number' || isNaN(longitude)) {
+    // Check if they're valid numbers
+    if (typeof latitude !== 'number' || isNaN(latitude) ||
+        typeof longitude !== 'number' || isNaN(longitude)) {
+      return false;
+    }
+
+    // Validate the ranges
+    return validateLatLng(latitude, longitude);
+  } catch {
     return false;
   }
-
-  // Validate the ranges
-  return validateLatLng(latitude, longitude);
 };
 
 /**
@@ -76,29 +99,28 @@ export const validateLatLng = (lat: number, lng: number): boolean => {
  * @returns Sanitized query string if valid, false otherwise
  */
 export const validateAndSanitizeSearchQuery = (query: string): string | false => {
-  if (!query || typeof query !== 'string') {
-    return false;
-  }
+  try {
+    validateString(query, 'search query');
 
-  const trimmed = query.trim();
-  // Must be between 1 and 100 characters (after trimming)
-  if (trimmed.length < 1 || trimmed.length > 100) {
-    return false;
-  }
+    const trimmed = query.trim();
+    // Must be between 1 and 100 characters (after trimming)
+    invariant(trimmed.length >= 1 && trimmed.length <= 100, 'Search query must be between 1 and 100 characters');
+    // Reject queries that contain only whitespace
+    invariant(!/^\s*$/.test(trimmed), 'Search query cannot be only whitespace');
+    // Only allow alphanumeric characters, spaces, commas, hyphens, periods, and single quotes
+    const allowedChars = /^[-a-zA-Z0-9\s,.'.]+$/;
+    invariant(allowedChars.test(trimmed), 'Search query contains invalid characters');
 
-  // Reject queries that contain only whitespace
-  if (/^\s*$/.test(trimmed)) {
+    // Sanitize the query to prevent XSS - but keep single quotes unescaped since they're allowed
+    // Use a more targeted escaping that doesn't escape single quotes
+    return trimmed
+      .replace(/&/g, '&')
+      .replace(/</g, '<')
+      .replace(/>/g, '>')
+      .replace(/"/g, '"');
+  } catch {
     return false;
-  }
-
-  // Only allow alphanumeric characters, spaces, commas, hyphens, and periods (no apostrophes considered dangerous)
-  const allowedChars = /^[a-zA-Z0-9\s,.-]+$/;
-  if (!allowedChars.test(trimmed)) {
-    return false;
-  }
-
-  // Sanitize the query to prevent XSS
-  return escape(trimmed);
+ }
 };
 
 /**
@@ -107,38 +129,33 @@ export const validateAndSanitizeSearchQuery = (query: string): string | false =>
  * @returns True if valid format, false otherwise
  */
 export const validateTimezone = (timezone: string): boolean => {
-  if (!timezone || typeof timezone !== 'string') {
-    return false;
-  }
+  try {
+    validateString(timezone, 'timezone');
+    const trimmed = timezone.trim();
+    invariant(trimmed.length > 0 && trimmed.length <= 50, 'Timezone must be between 1 and 50 characters');
+    invariant(trimmed === timezone, 'Timezone cannot have leading or trailing spaces');
 
-  const trimmed = timezone.trim();
-  if (trimmed.length === 0 || trimmed.length > 50) {
-    return false;
-  }
+    // Additional validation for common timezone patterns
+    const commonTimezones = [
+      'UTC', 'GMT', 'EST', 'CST', 'MST', 'PST', 'EDT', 'CDT', 'MDT', 'PDT',
+      'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+      'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Shanghai',
+      'Etc/GMT+5', 'Etc/GMT-8', 'Etc/GMT+10'
+    ];
 
-  // Must not start or end with spaces or special characters
-  if (trimmed !== timezone) {
-    return false;
-  }
+    // Check if it's a common timezone first
+    if (commonTimezones.includes(trimmed)) {
+      return true;
+    }
 
-  // Additional validation for common timezone patterns
-  const commonTimezones = [
-    'UTC', 'GMT', 'EST', 'CST', 'MST', 'PST', 'EDT', 'CDT', 'MDT', 'PDT',
-    'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
-    'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Shanghai',
-    'Etc/GMT+5', 'Etc/GMT-8', 'Etc/GMT+10'
-  ];
+    // For other timezones, use more strict pattern matching
+    const timezoneRegex = /^(?:[A-Za-z]+\/[A-Za-z_]+|Etc\/GMT[+-]\d+)$/;
+    invariant(timezoneRegex.test(trimmed), 'Invalid timezone format');
 
-  // Check if it's a common timezone first
-  if (commonTimezones.includes(trimmed)) {
     return true;
+  } catch {
+    return false;
   }
-
-  // For other timezones, use more strict pattern matching
-  // It should be in the format of Area/Location or Etc/GMT+/-offset
-  const timezoneRegex = /^(?:[A-Za-z]+\/[A-Za-z_]+|Etc\/GMT[+-]\d+)$/;
-  
-  return timezoneRegex.test(trimmed);
 };
 
 /**
@@ -148,11 +165,11 @@ export const validateTimezone = (timezone: string): boolean => {
  * @returns Sanitized date strings if valid, false otherwise
  */
 export const validateAndSanitizeDateRange = (start: string, end: string): {start: string, end: string} | false => {
-  // Sanitize inputs
-  const sanitizedStart = escape(start);
-  const sanitizedEnd = escape(end);
-
-  if (!isValidDateString(sanitizedStart) || !isValidDateString(sanitizedEnd)) {
+   // Sanitize inputs
+   const sanitizedStart = escapeHtml(start);
+   const sanitizedEnd = escapeHtml(end);
+ 
+   if (!isValidDateString(sanitizedStart) || !isValidDateString(sanitizedEnd)) {
     return false;
   }
 
@@ -178,25 +195,25 @@ export const validateAndSanitizeDateRange = (start: string, end: string): {start
  * Validates and sanitizes coordinates.
  * @param lat - Latitude value
  * @param lng - Longitude value
- * @returns True if valid, false otherwise
+ * @returns Sanitized coordinates if valid, false otherwise
  */
 export const validateAndSanitizeCoordinates = (lat: unknown, lng: unknown): {lat: number, lng: number} | false => {
-  // Convert to numbers if they're strings
-  const latitude = typeof lat === 'string' ? parseFloat(lat) : lat;
-  const longitude = typeof lng === 'string' ? parseFloat(lng) : lng;
+  try {
+    // Convert to numbers if they're strings
+    const latitude = typeof lat === 'string' ? parseFloat(lat) : lat;
+    const longitude = typeof lng === 'string' ? parseFloat(lng) : lng;
 
-  // Check if they're valid numbers
-  if (typeof latitude !== 'number' || isNaN(latitude) ||
-      typeof longitude !== 'number' || isNaN(longitude)) {
+    // Check if they're valid numbers using invariant
+    invariant(typeof latitude === 'number' && !isNaN(latitude), 'Latitude must be a valid number');
+    invariant(typeof longitude === 'number' && !isNaN(longitude), 'Longitude must be a valid number');
+
+    // Validate the ranges using invariant
+    invariant(validateLatLng(latitude, longitude), 'Coordinates out of valid range: lat(-90 to 90), lng(-180 to 180)');
+
+    return { lat: latitude, lng: longitude };
+  } catch {
     return false;
   }
-
-  // Validate the ranges
-  if (!validateLatLng(latitude, longitude)) {
-    return false;
-  }
-
-  return { lat: latitude, lng: longitude };
 };
 
 /**
@@ -209,10 +226,10 @@ export const validateAndSanitizeTimezone = (timezone: string): string | false =>
     return false;
   }
 
-  // Sanitize the timezone string
-  const sanitized = escape(timezone);
-
-  if (!validateTimezone(sanitized)) {
+   // Sanitize the timezone string
+   const sanitized = escapeHtml(timezone);
+ 
+   if (!validateTimezone(sanitized)) {
     return false;
   }
 
@@ -227,24 +244,16 @@ export const validateAndSanitizeTimezone = (timezone: string): string | false =>
  */
 export const validateDateRangeWithErrors = (start: string, end: string): void => {
   if (DEBUG_LOGS) console.log('[DEBUG] validateDateRangeWithErrors called with:', { start, end });
+
+  // Validate input parameters
+  validateString(start, 'start date');
+  validateString(end, 'end date');
+
   // Use the sanitizer/validator helper which trims, escapes and performs
   // consistent validation. This avoids false negatives caused by timezone
   // offsets when constructing Date objects directly from YYYY-MM-DD strings.
   const sanitized = validateAndSanitizeDateRange(start, end);
-  if (!sanitized) {
-    if (DEBUG_LOGS) console.log('[DEBUG] validateDateRangeWithErrors - validateAndSanitizeDateRange returned false', { start, end });
-    // Distinguish between format and range errors where possible
-    if (!isValidDateString(start) || !isValidDateString(end)) {
-      throw new ValidationError('Invalid date format. Please use valid YYYY-MM-DD dates', 'date', { start, end });
-    }
-
-    if (!isValidDateRange(start, end)) {
-      throw new ValidationError('Date range cannot exceed 365 days', 'date_range', { start, end });
-    }
-
-    // Fallback generic error
-    throw new ValidationError('Invalid date range', 'date', { start, end });
-  }
+  invariant(sanitized, 'Invalid date range format or range exceeds 365 days');
 };
 
 /**
@@ -254,9 +263,9 @@ export const validateDateRangeWithErrors = (start: string, end: string): void =>
  * @throws ValidationError if validation fails
  */
 export const validateCoordinatesWithErrors = (lat: number, lng: number): void => {
-  if (!validateLatLng(lat, lng)) {
-    throw new ValidationError('Invalid latitude or longitude values', 'coordinates', { lat, lng });
-  }
+  validateNumber(lat, 'latitude', -90, 90);
+  validateNumber(lng, 'longitude', -180, 180);
+  invariant(validateLatLng(lat, lng), 'Invalid coordinate range');
 };
 
 /**

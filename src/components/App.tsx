@@ -19,7 +19,6 @@ import { TemperatureChart } from './TemperatureChart';
 import { PrecipitationChart } from './PrecipitationChart';
 import { useErrorHandler } from './useErrorHandler';
 import { ErrorBoundary } from './ErrorBoundary';
-import { APIDebugTool } from './APIDebugTool';
 
 import '../styles.css';
 
@@ -307,7 +306,6 @@ const App = () => {
 
   return (
     <ErrorBoundary onError={(error) => handleError(error.message, 'error')}>
-      <APIDebugTool />
       <div className="app-container">
         <header className="header">
           <h1>Weather History Viewer</h1>

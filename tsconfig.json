@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "esnext",
+    "moduleResolution": "node",
     "outDir": "./dist/client",
     "rootDir": "./src",
     "strict": true,
@@ -10,13 +11,14 @@
     "forceConsistentCasingInFileNames": true,
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
-    "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "noImplicitAny": true,
     "noImplicitThis": true,
     "alwaysStrict": true,
     "incremental": true,
-    "types": ["preact", "jest"]
+    "types": ["preact", "jest"],
+    "verbatimModuleSyntax": false,
+    "resolveJsonModule": true
   },
   "include": [
     "src/**/*.ts",

@@ -14,6 +14,19 @@ export default {
   plugins: [
     ['@babel/plugin-transform-runtime', {
       regenerator: true
-    }]
+    }],
+    [
+      'module-resolver',
+      {
+        root: ['./src'],
+        extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+        alias: {
+          '^([^.]+).js$': '\\1',
+          '^([^.]+).jsx$': '\\1',
+          '^([^.]+).ts$': '\\1',
+          '^([^.]+).tsx$': '\\1'
+        }
+      }
+    ]
   ]
 };

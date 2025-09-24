@@ -146,7 +146,8 @@ export default [
       'import/resolver': {
         typescript: {
           alwaysTryTypes: true,
-          project: './tsconfig.json',
+          // Include both client and server tsconfig so eslint can resolve imports for all code
+          project: ['./tsconfig.json', './tsconfig.server.json'],
         },
         node: {
           extensions: ['.ts', '.tsx', '.js', '.jsx'],

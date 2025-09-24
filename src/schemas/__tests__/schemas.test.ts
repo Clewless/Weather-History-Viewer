@@ -1,13 +1,13 @@
 import { describe, it, expect } from '@jest/globals';
 import { ZodError } from 'zod';
 
-import { 
-  LocationSchema, 
-  SearchQuerySchema, 
-  ReverseGeocodeSchema, 
-  WeatherLocationSchema
+import {
+ LocationSchema,
+  SearchQuerySchema,
+  ReverseGeocodeSchema,
+ WeatherLocationSchema
 } from '../locationSchema';
-import { 
+import {
   DailyWeatherDataSchema,
   HourlyWeatherDataSchema,
   WeatherAPIParamsSchema

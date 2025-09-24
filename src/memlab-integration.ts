@@ -157,18 +157,22 @@ export class MemlabIntegration {
    */
   private async analyzeMemlabResults(memlabResult: Record<string, unknown>): Promise<Record<string, unknown>> {
     const memoryInfo = this.memoryTester.getMemoryInfo();
+    
+    // Type-safe access to memlabResult properties
+    const summary = memlabResult.summary as Record<string, unknown> | undefined;
+    const leaks = Array.isArray(summary?.leaks) ? summary.leaks : [];
 
     return {
       memlabAvailable: true,
       customAnalysis: false,
       scenario: memlabResult.scenario,
       summary: {
-        totalLeaks: memlabResult.summary?.leaks?.length || 0,
+        totalLeaks: leaks.length || 0,
         memoryIncrease: memoryInfo.current.heapUsed - memoryInfo.baseline.heapUsed,
         peakMemoryUsage: memoryInfo.peak.heapUsed,
         snapshotsTaken: memoryInfo.snapshots.length
       },
-      leaks: memlabResult.summary?.leaks || [],
+      leaks,
       recommendations: this.generateRecommendationsFromMemlab(memlabResult),
       metadata: {
         timestamp: new Date().toISOString(),
@@ -210,19 +214,22 @@ export class MemlabIntegration {
    */
   private generateRecommendationsFromMemlab(memlabResult: Record<string, unknown>): string[] {
     const recommendations: string[] = [];
+    
+    // Type-safe access to memlabResult properties
+    const summary = memlabResult.summary as Record<string, unknown> | undefined;
+    const leaks = Array.isArray(summary?.leaks) ? summary.leaks : [];
+    const memoryIncrease = typeof summary?.memoryIncrease === 'number' ? summary.memoryIncrease : 0;
 
-    if (memlabResult.summary?.leaks?.length > 0) {
+    if (leaks.length > 0) {
       recommendations.push('🔴 Critical: Memory leaks detected by Memlab');
       recommendations.push('🔍 Review leaked objects and their reference chains');
       recommendations.push('🛠️ Implement proper cleanup in identified leak locations');
     }
 
-    if (memlabResult.summary?.memoryIncrease > 50 * 1024 * 1024) { // 50MB
+    if (memoryIncrease > 50 * 1024 * 1024) { // 50MB
       recommendations.push('⚠️ Significant memory increase detected');
       recommendations.push('🔧 Optimize memory usage in hot paths');
     }
-
-    recommendations.push('📊 Regular Memlab scans recommended for production readiness');
 
     return recommendations;
   }

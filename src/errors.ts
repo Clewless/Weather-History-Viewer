@@ -2,7 +2,10 @@
  * Custom error classes for better error handling and debugging
  */
 
+import invariant from 'tiny-invariant';
+
 import { ErrorResponse } from './types.js';
+import { validateString, validateObject, validateNumber } from './utils/invariants';
 
 export class NetworkError extends Error {
   constructor(message: string, public statusCode?: number) {
@@ -43,6 +46,8 @@ export class RateLimitError extends Error {
  * Helper function to determine error type and wrap appropriately
  */
 export function wrapError(error: unknown, context: string): Error {
+  validateString(context, 'context');
+
   if (error instanceof Error) {
     // If it's already one of our custom errors, return as-is
     if (error instanceof NetworkError || error instanceof APIError ||
@@ -51,7 +56,7 @@ export function wrapError(error: unknown, context: string): Error {
     }
 
     // Check if it's an axios error
-    if (typeof error === 'object' && error !== null && 'isAxiosError' in error) {
+    if (validateObject(error, 'error') && 'isAxiosError' in error) {
       const axiosError = error as { response?: { status: number; statusText: string; data: unknown }; request?: unknown };
       if (axiosError.response) {
         return new APIError(
@@ -76,16 +81,19 @@ export function wrapError(error: unknown, context: string): Error {
  * Helper function to create a standardized error response
  */
 export function createErrorResponse(error: Error, statusCode?: number): ErrorResponse {
+  invariant(error instanceof Error, 'error must be an Error instance');
+
   const response: ErrorResponse = {
     error: error.message,
     timestamp: new Date().toISOString()
   };
 
   if (statusCode) {
+    validateNumber(statusCode, 'statusCode', 100, 599);
     response.statusCode = statusCode;
   }
 
-  if (error instanceof ValidationError) {
+  if (error instanceof ValidationError && error.field) {
     response.field = error.field;
   }
 

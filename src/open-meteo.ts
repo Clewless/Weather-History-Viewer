@@ -13,8 +13,8 @@ import { FALLBACK_LOCATION } from './constants.js';
 import {
   WeatherDataResponseSchema
 } from './schemas/weatherSchema.js';
-import { 
-  LocationSchema, 
+import {
+  LocationSchema,
   WeatherLocationSchema
 } from './schemas/locationSchema.js';
 
@@ -259,7 +259,8 @@ export const getHistoricalWeather = async (
       hourly: data.hourly
     }, 'Invalid weather data response');
 
-    return validatedData as { daily: DailyWeatherData; hourly: HourlyWeatherData };
+    // After processing string timestamps to Date objects, we can safely cast to the interface types
+    return validatedData as unknown as { daily: DailyWeatherData; hourly: HourlyWeatherData };
   } catch (error: unknown) {
     throw wrapError(error, 'Weather API request failed');
   }

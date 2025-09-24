@@ -3,7 +3,7 @@ import { h } from 'preact';
 import type { JSX } from 'preact/jsx-runtime';
 
 import { DailyWeatherData, HourlyWeatherData } from '../open-meteo.js';
-import { Location } from '../types';
+import { Location } from '../types.js';
 import { getLocalDayHours, formatLocalTime } from '../utils/weatherUtils';
 import { parseDateString } from '../utils/dateUtils';
 
