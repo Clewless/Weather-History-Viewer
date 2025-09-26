@@ -88,10 +88,13 @@ export default (env, argv) => {
         ] : [])
       ],
     devServer: {
-      static: './dist/client',
+      static: [
+        { directory: path.resolve(process.cwd(), 'dist/client') },
+        { directory: path.resolve(process.cwd(), 'public') }
+      ],
       hot: true,
       port: parseInt(process.env.FRONTEND_PORT || '3000'),
-      open: true,
+      open: ['http://localhost:' + (process.env.FRONTEND_PORT || '3000')],
       historyApiFallback: true
     },
     externals: isProduction ? {

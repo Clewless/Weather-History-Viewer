@@ -169,8 +169,9 @@ const App = () => {
   const handleLocationSelect = useCallback((location: Location) => {
     clearError();
     setCurrentLocation(location);
+    setGeolocationRequested(false);
     // fetch triggered by useEffect
-  }, [clearError, setCurrentLocation]);
+  }, [clearError, setCurrentLocation, setGeolocationRequested]);
 
   const handleMapLocationSelect = useCallback(async (lat: number, lng: number) => {
     clearError();
@@ -195,8 +196,9 @@ const App = () => {
       setCurrentLocation(fallbackLocation);
     } finally {
       setIsLoading(false);
+      setGeolocationRequested(false);
     }
-  }, [clearError, setIsLoading, cachedReverseGeocode, setCurrentLocation, handleError]);
+  }, [clearError, setIsLoading, cachedReverseGeocode, setCurrentLocation, handleError, setGeolocationRequested]);
 
   const handleTemperatureUnitChange = useCallback((unit: 'C' | 'F') => {
     setTemperatureUnit(unit);
@@ -274,6 +276,7 @@ const App = () => {
   
     setIsLoading(true);
     setCurrentLocation(defaultLocation);
+    setGeolocationRequested(false);
     handleError('Using default location: New York', 'info');
   }, [fetchWeatherData, clearError, handleError, selectedDate, setCurrentLocation]);
 
@@ -425,52 +428,44 @@ const App = () => {
         </div>
 
         <div className="weather-section">
-          {isLoading ? (
-            <div className="skeleton-container" role="status" aria-live="polite">
-              <div className="skeleton skeleton-title"></div>
-              <div className="skeleton skeleton-card"></div>
-              <div className="skeleton skeleton-chart"></div>
-              <div className="skeleton skeleton-chart"></div>
-            </div>
-          ) : (
+          {!error?.message && (
             <>
-              {!error?.message && (
-                <>
-                  <ErrorBoundary>
-                    <WeatherDisplay
-                      weatherData={weatherData}
-                      location={currentLocation}
-                      temperatureUnit={temperatureUnit}
-                      onTemperatureUnitChange={handleTemperatureUnitChange}
-                      aria-label="Weather display for selected location and date range"
-                    />
-                  </ErrorBoundary>
-                  <ErrorBoundary>
-                    <TemperatureChart
-                      weatherData={weatherData}
-                      temperatureUnit={temperatureUnit}
-                      location={currentLocation}
-                      startDate={selectedDate}
-                      aria-label="Daily temperature chart"
-                    />
-                  </ErrorBoundary>
-                  <ErrorBoundary>
-                    <PrecipitationChart
-                      weatherData={weatherData}
-                      temperatureUnit={temperatureUnit}
-                      location={currentLocation}
-                      startDate={selectedDate}
-                      aria-label="Daily precipitation chart"
-                    />
-                  </ErrorBoundary>
-                </>
-              )}
-              {error?.message && (
-                <div className="error-message error" role="alert">
-                  <div>{error.message}</div>
-                </div>
-              )}
+              <ErrorBoundary>
+                <WeatherDisplay
+                  weatherData={weatherData}
+                  location={currentLocation}
+                  temperatureUnit={temperatureUnit}
+                  onTemperatureUnitChange={handleTemperatureUnitChange}
+                  isLoading={isLoading}
+                  aria-label="Weather display for selected location and date range"
+                />
+              </ErrorBoundary>
+              <ErrorBoundary>
+                <TemperatureChart
+                  weatherData={weatherData}
+                  temperatureUnit={temperatureUnit}
+                  location={currentLocation}
+                  startDate={selectedDate}
+                  isLoading={isLoading}
+                  aria-label="Daily temperature chart"
+                />
+              </ErrorBoundary>
+              <ErrorBoundary>
+                <PrecipitationChart
+                  weatherData={weatherData}
+                  temperatureUnit={temperatureUnit}
+                  location={currentLocation}
+                  startDate={selectedDate}
+                  isLoading={isLoading}
+                  aria-label="Daily precipitation chart"
+                />
+              </ErrorBoundary>
             </>
+          )}
+          {error?.message && (
+            <div className="error-message error" role="alert">
+              <div>{error.message}</div>
+            </div>
           )}
         </div>
       </div>

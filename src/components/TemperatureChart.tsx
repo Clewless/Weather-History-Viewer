@@ -13,9 +13,10 @@ interface TemperatureChartProps {
   temperatureUnit: 'C' | 'F';
   location?: Location | null;
   startDate?: string;
+  isLoading?: boolean;
 }
 
-export const TemperatureChart = ({ weatherData, temperatureUnit, location, startDate }: TemperatureChartProps): JSX.Element => {
+export const TemperatureChart = ({ weatherData, temperatureUnit, location, startDate, isLoading = false }: TemperatureChartProps): JSX.Element => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Chart rendering constants
@@ -175,12 +176,21 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
     timezone: 'UTC',
     country: 'Unknown'
   } as Location, effectiveStartDate);
+  if (isLoading) {
+    return (
+      <div class="chart-container">
+        <h4 class="skeleton skeleton-title"></h4>
+        <div class="skeleton skeleton-chart"></div>
+      </div>
+    );
+  }
+
   if (localData.temps.length === 0 && weatherData && location) {
     return (
       <div class="chart-container">
         <h4>Temperature</h4>
         <div class="chart-placeholder">
-          <p>No temperature data available for this date/location</p>
+          <p>No temperature data available for the selected date and location. Try a different historical date from 1940 onwards.</p>
         </div>
       </div>
     );
@@ -189,10 +199,8 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
   if (!weatherData || !location) {
     return (
       <div class="chart-container">
-        <h4>Temperature</h4>
-        <div class="chart-placeholder">
-          <p>Select a location and date to view daily temperature chart</p>
-        </div>
+        <h4 class="skeleton skeleton-title"></h4>
+        <div class="skeleton skeleton-chart"></div>
       </div>
     );
   }

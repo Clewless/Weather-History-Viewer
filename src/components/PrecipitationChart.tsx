@@ -13,9 +13,10 @@ interface PrecipitationChartProps {
   temperatureUnit: 'C' | 'F';
   location?: Location | null;
   startDate?: string;
+  isLoading?: boolean;
 }
 
-export const PrecipitationChart = ({ weatherData, temperatureUnit, location, startDate }: PrecipitationChartProps): JSX.Element => {
+export const PrecipitationChart = ({ weatherData, temperatureUnit, location, startDate, isLoading = false }: PrecipitationChartProps): JSX.Element => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Chart rendering constants
@@ -200,12 +201,21 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
   } as unknown as HourlyWeatherData;
   const hourlyData = weatherData?.hourly || emptyHourly;
   const localData = getLocalDayHours(hourlyData, location || { timezone: 'UTC' } as unknown as Location, effectiveStartDate);
+  if (isLoading) {
+    return (
+      <div class="chart-container">
+        <h4 class="skeleton skeleton-title"></h4>
+        <div class="skeleton skeleton-chart"></div>
+      </div>
+    );
+  }
+
   if (localData.precip.length === 0 && weatherData && location) {
     return (
       <div class="chart-container">
         <h4>Precipitation & Cloud Cover</h4>
         <div class="chart-placeholder">
-          <p>No precipitation data available for this date/location</p>
+          <p>No precipitation or cloud cover data available for the selected date and location. Try a different historical date from 1940 onwards.</p>
         </div>
       </div>
     );
@@ -214,10 +224,8 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
   if (!weatherData || !location) {
     return (
       <div class="chart-container">
-        <h4>Precipitation & Cloud Cover</h4>
-        <div class="chart-placeholder">
-          <p>Select a location and date range to view precipitation chart</p>
-        </div>
+        <h4 class="skeleton skeleton-title"></h4>
+        <div class="skeleton skeleton-chart"></div>
       </div>
     );
   }

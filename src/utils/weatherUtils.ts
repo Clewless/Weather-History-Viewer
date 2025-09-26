@@ -45,14 +45,17 @@ export const getLocalDayHours = (hourly: HourlyWeatherData, location: Location, 
     const startLocal = toZonedTime(startUtc, location.timezone);
     const endLocal = toZonedTime(endUtc, location.timezone);
 
-    let sampleHourlyTime: Date | string = hourly.time[0];
-    let sampleHourlyTimeStr = typeof sampleHourlyTime === 'string' ? sampleHourlyTime : sampleHourlyTime.toISOString();
+    const sampleHourlyTime: Date | string | undefined = hourly.time[0];
+    const sampleHourlyTimeStr = typeof sampleHourlyTime === 'string' ? sampleHourlyTime : sampleHourlyTime?.toISOString();
     let sampleLocalTime: Date;
     try {
       const sampleTimeDate = typeof sampleHourlyTime === 'string' ? new Date(sampleHourlyTime) : sampleHourlyTime;
+      if (isNaN(sampleTimeDate.getTime())) {
+        throw new Error('Invalid date');
+      }
       sampleLocalTime = toZonedTime(sampleTimeDate, location.timezone);
-    } catch (e) {
-      sampleLocalTime = new Date(0); // fallback
+    } catch {
+      sampleLocalTime = new Date(); // fallback to current date
     }
     const sampleLocalTimeStr = sampleLocalTime.toISOString();
 

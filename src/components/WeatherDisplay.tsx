@@ -13,10 +13,11 @@ interface WeatherDisplayProps {
   temperatureUnit: 'C' | 'F';
   onTemperatureUnitChange?: (unit: 'C' | 'F') => void;
   error?: string;
+  isLoading?: boolean;
 }
 
 
-export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTemperatureUnitChange, error }: WeatherDisplayProps): JSX.Element => {
+export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTemperatureUnitChange, error, isLoading = false }: WeatherDisplayProps): JSX.Element => {
   if (error != null) {
     return (
       <div class="weather-info">
@@ -27,10 +28,44 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
     );
   }
 
+  if (isLoading) {
+    return (
+      <div class="weather-info">
+        <div class="weather-header">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-button"></div>
+        </div>
+        <div class="daily-weather">
+          <h4 class="skeleton skeleton-title"></h4>
+          <div class="daily-grid">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} class="daily-item">
+                <div class="skeleton skeleton-text"></div>
+                <div class="skeleton skeleton-card" style="height: 120px;"></div>
+                <div class="skeleton skeleton-text" style="width: 80%;"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!weatherData || !location) {
     return (
       <div class="weather-info">
-        <p>Select a location and date range to view weather data</p>
+        <div class="weather-header">
+          <div class="location-name skeleton skeleton-title"></div>
+          <div class="temp-toggle skeleton skeleton-button"></div>
+        </div>
+        <div class="daily-weather">
+          <h4>Daily Summary</h4>
+          <div class="daily-grid">
+            <div class="daily-item">
+              <p class="chart-placeholder">Select a location and date to view historical weather summary, including temperature highs/lows, precipitation, wind, and sun times.</p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -76,16 +111,16 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
 
   const getWeatherIcon = (code: number): string => {
     const icons: { [key: number]: string } = {
-      0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️',
-      45: '🌫️', 48: '🌫️',
-      51: '🌦️', 53: '🌦️', 55: '🌦️', 56: '🌨️', 57: '🌨️',
-      61: '🌧️', 63: '🌧️', 65: '⛈️', 66: '🌨️', 67: '🌨️',
-      71: '🌨️', 73: '🌨️', 75: '🌨️', 77: '🌨️',
-      80: '🌦️', 81: '🌦️', 82: '⛈️',
-      85: '🌨️', 86: '🌨️',
-      95: '⛈️', 96: '⛈️', 99: '⛈️'
+      0: 'Clear', 1: 'Mainly Clear', 2: 'Partly Cloudy', 3: 'Overcast',
+      45: 'Fog', 48: 'Rime Fog',
+      51: 'Light Drizzle', 53: 'Drizzle', 55: 'Dense Drizzle', 56: 'Freezing Drizzle', 57: 'Dense Freezing Drizzle',
+      61: 'Light Rain', 63: 'Rain', 65: 'Heavy Rain', 66: 'Freezing Rain', 67: 'Heavy Freezing Rain',
+      71: 'Light Snow', 73: 'Snow', 75: 'Heavy Snow', 77: 'Snow Grains',
+      80: 'Light Showers', 81: 'Showers', 82: 'Heavy Showers',
+      85: 'Light Snow Showers', 86: 'Snow Showers',
+      95: 'Thunderstorm', 96: 'Hail Thunderstorm', 99: 'Heavy Hail'
     };
-    return icons[code] || '❓';
+    return icons[code] || 'Unknown';
   };
 
   const getWeatherDescription = (code: number): string => {
@@ -183,7 +218,7 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
                 <div class="daily-header">
                   <div class="daily-date">{formatDate(date)}</div>
                   <div class="daily-icon" aria-label={getWeatherDescription(weatherData.daily.weathercode?.[index] ?? 0)}>
-                    {getWeatherIcon(weatherData.daily.weathercode?.[index] ?? 0)}
+                    <span class="weather-label">{getWeatherIcon(weatherData.daily.weathercode?.[index] ?? 0)}</span>
                   </div>
                 </div>
                 
@@ -196,13 +231,11 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
                       </span>
                       <span class="temp-label">H</span>
                     </div>
-                    <div class="temp-range">
-                      <span class="temp-min" style={{ color: getTempColor(minTemp) }}>
+                    <span class="temp-divider">—</span>
+                    <div class="temp-low">
+                      <span class="temp-value" style={{ color: getTempColor(minTemp) }}>
                         {minTempFormatted}°
                       </span>
-                      <span class="temp-divider">—</span>
-                    </div>
-                    <div class="temp-low">
                       <span class="temp-label">L</span>
                     </div>
                   </div>

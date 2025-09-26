@@ -99,10 +99,14 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", ...(nodeEnv === 'development' ? ['http://localhost:3000'] : [])],
         styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:"] // Allow images from self and data URLs
       },
     },
   })
 );
+
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // (Env variables already computed above)
 

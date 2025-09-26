@@ -1,14 +1,16 @@
-import { h, Component, ComponentChildren } from 'preact';
-
-interface ErrorBoundaryProps {
-  children: ComponentChildren;
-  fallback?: ComponentChildren;
-  onError?: (error: Error) => void;
-}
+import { h, Component } from 'preact';
+import type { ComponentType, VNode } from 'preact';
 
 interface ErrorBoundaryState {
   hasError: boolean;
   error?: Error;
+  errorInfo?: any;
+}
+
+interface ErrorBoundaryProps {
+  children: VNode;
+  fallback?: ComponentType<{ error: Error | null; errorInfo?: any; resetError: () => void }>;
+  onError?: (error: Error, errorInfo: any) => void;
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -17,44 +19,70 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: unknown) {
-    console.error('Error boundary caught:', error, errorInfo);
-    this.props.onError?.(error);
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('Error caught by boundary:', error, errorInfo);
+    this.setState({ errorInfo });
+    
+    // Call the optional onError callback if provided
+    if (this.props.onError) {
+      this.props.onError(error, errorInfo);
+    }
   }
+
+  resetError = () => {
+    this.setState({ hasError: false, error: undefined, errorInfo: undefined });
+  };
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback || (
-        <div class="error-boundary" style={{
-          padding: '20px',
-          margin: '10px 0',
-          border: '1px solid #ff6b6b',
-          borderRadius: '4px',
-          backgroundColor: '#ffe0e0'
-        }}>
-          <h3 style={{ color: '#d63031', margin: '0 0 10px 0' }}>
-            Something went wrong
-          </h3>
-          <p style={{ margin: '0 0 15px 0', color: '#636e72' }}>
-            {this.state.error?.message || 'An unexpected error occurred'}
-          </p>
-          <button
-            onClick={() => this.setState({ hasError: false, error: undefined })}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#d63031',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Try Again
+      if (this.props.fallback) {
+        const Fallback = this.props.fallback;
+        return <Fallback 
+          error={this.state.error || null} 
+          errorInfo={this.state.errorInfo}
+          resetError={this.resetError} 
+        />;
+      }
+      
+      return (
+        <div class="error-boundary" role="alert">
+          <h2>Something went wrong</h2>
+          <p>We're sorry, but an error occurred in the application.</p>
+          {this.state.error && (
+            <details 
+              style={{ 
+                whiteSpace: 'pre-wrap',
+                textAlign: 'left',
+                maxWidth: '800px',
+                margin: '0 auto',
+                background: '#f8fafc',
+                padding: '1rem',
+                borderRadius: '0.5rem',
+                color: '#64748b',
+                fontFamily: 'monospace',
+                fontSize: '0.875rem'
+              }}
+            >
+              <summary>Error details</summary>
+              {this.state.error.toString()}
+              {this.state.errorInfo?.componentStack && (
+                <div style={{ marginTop: '1rem' }}>
+                  Component Stack:
+                  {this.state.errorInfo.componentStack}
+                </div>
+              )}
+            </details>
+          )}
+          <button class="retry-button" onClick={this.resetError}>
+            Try again
           </button>
+          <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#64748b' }}>
+            If the problem persists, please refresh the page or contact support.
+          </p>
         </div>
       );
     }

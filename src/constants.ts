@@ -22,7 +22,7 @@ import { FallbackLocation } from './types.js';
 
 /** Fallback location data when geolocation fails */
 export const FALLBACK_LOCATION: FallbackLocation = {
-  ID: 0,
+  ID: 1,
   NAME: 'Unknown Location',
   LATITUDE: 0,
   LONGITUDE: 0,

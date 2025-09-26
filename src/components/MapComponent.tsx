@@ -1,9 +1,10 @@
 import { h } from 'preact';
 
 import type { JSX } from 'preact/jsx-runtime';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 
 import L from 'leaflet';
+L.Icon.Default.imagePath = '';
 import 'leaflet/dist/leaflet.css';
 
 interface MapProps {
@@ -16,17 +17,37 @@ export const MapComponent = ({ latitude, longitude, onLocationSelect }: MapProps
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Initialize map
-    const map = L.map(containerRef.current).setView([latitude, longitude], 10);
+    // Initialize map with zoom controls
+    const map = L.map(containerRef.current, {
+      zoomControl: true
+    }).setView([latitude, longitude], 10);
 
-    // Add tile layer
+    // Add tile layer with custom attribution control
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      attribution: '',
+      // Add event listeners for loading state
+      onload: () => setIsLoading(false),
+      onloadstart: () => setIsLoading(true)
     }).addTo(map);
+
+    // Custom attribution control for better styling
+    const attributionControl = L.control({position: 'bottomright'});
+    attributionControl.onAdd = function(_map: L.Map) {
+      const div = L.DomUtil.create('div', 'leaflet-control-attribution custom-attribution');
+      div.innerHTML = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+      div.style.background = 'rgba(255,255,255,0.8)';
+      div.style.padding = '2px 5px';
+      div.style.borderRadius = '3px';
+      div.style.fontSize = '12px';
+      div.style.color = '#333';
+      return div;
+    };
+    attributionControl.addTo(map);
 
     // Add marker
     const marker = L.marker([latitude, longitude]).addTo(map);
@@ -40,6 +61,17 @@ export const MapComponent = ({ latitude, longitude, onLocationSelect }: MapProps
       const { lat, lng } = e.latlng;
       onLocationSelect?.(lat, lng);
     });
+
+    // Handle map loading events
+    map.on('tileloadstart', () => setIsLoading(true));
+    map.on('tileload', () => {
+      // Check if all tiles are loaded
+      const tilesToLoad = map._tilesToLoad as number;
+      if (tilesToLoad === 0) {
+        setIsLoading(false);
+      }
+    });
+    map.on('tileerror', () => setIsLoading(false)); // Hide loading if tile fails
 
     return () => {
       map.remove();
@@ -61,12 +93,33 @@ export const MapComponent = ({ latitude, longitude, onLocationSelect }: MapProps
       class="map-container"
       style={{
         width: '100%',
-        height: '400px',
         borderRadius: '0.5rem',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        position: 'relative' // Add position for loading overlay
       }}
       aria-label="Interactive map for location selection"
       tabIndex={0}
-    />
+    >
+      {isLoading && (
+        <div 
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.7)',
+            zIndex: 1000,
+            borderRadius: '0.5rem'
+          }}
+          aria-label="Map is loading"
+        >
+          <div class="loading-spinner" />
+        </div>
+      )}
+    </div>
   );
 };
