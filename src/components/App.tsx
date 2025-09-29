@@ -95,7 +95,7 @@ const App = () => {
     try {
       const data = await cachedGetWeather(location, start, end);
       setWeatherData(data);
-    } catch (err) {
+    } catch (err: unknown) {
       if (err instanceof ValidationError) {
         handleError(`Invalid input: ${err.message}`, 'error');
       } else if (err instanceof APIError) {
@@ -145,7 +145,7 @@ const App = () => {
           };
           setCurrentLocation(fallbackLocation);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof GeolocationPositionError) {
           if (err.code === GeolocationPositionError.PERMISSION_DENIED) {
             handleError('Geolocation access denied. Using default location.', 'warning');
@@ -308,7 +308,7 @@ const App = () => {
           if (cache && typeof cache.stopCleanup === 'function') {
             cache.stopCleanup();
           }
-        } catch (error) {
+        } catch (error: unknown) {
           console.warn(`Error stopping ${cacheName} cache cleanup:`, error);
         }
       };
@@ -360,7 +360,7 @@ const App = () => {
   }, []);
 
   return (
-    <ErrorBoundary onError={(error) => handleError(error.message, 'error')}>
+    <ErrorBoundary onError={(error: Error) => handleError(error.message, 'error')}>
       <div className="app-container">
         <button
           onClick={toggleDarkMode}

@@ -6,23 +6,13 @@
   "scripts": {
     "start": "webpack-dev-server --open",
     "build": "webpack",
-    "build:server": "tsc -p tsconfig.server.json",
-    "build:memory": "tsc -p tsconfig.memory.json",
-    "start:server": "node --enable-source-maps dist/server/server.js",
-    "dev:server": "node --experimental-specifier-resolution=node --loader ts-node/esm src/server.ts",
-    "dev:server:watch": "concurrently -k \"tsc -p tsconfig.server.json --watch\" \"nodemon --watch dist/server -e js --delay 200ms --exec 'node --enable-source-maps dist/server/server.js'\"",
-    "dev:server:fast": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "start:all": "concurrently \"npm run start\" \"npm run start:server\"",
-    "prod": "npm run build && npm run build:server && node scripts/fix-dist-imports.js && npm run start:server",
+    "start:server": "node --enable-source-maps dist/server.cjs",
+    "dev:server": "nodemon --watch src --ext ts --exec \"webpack --config webpack.config.cjs --env development --mode development && node --enable-source-maps dist/server.cjs\"",
+    "start:all": "concurrently \"npm run start\" \"npm run dev:server\"",
+    "prod": "webpack --config webpack.config.cjs --mode production && npm run start:server",
     "lint": "eslint . --ext .ts,.tsx,.js",
     "test": "jest --coverage",
-    "type-check": "tsc --noEmit",
-    "debug:server": "node src/debug-server.js",
-    "memory-monitor": "npm run build:memory && node dist/memory-monitor.js",
-    "load-test": "npm run build:memory && node dist/load-test.js",
-    "memory-profiler": "npm run build:memory && node --expose-gc dist/memory-profiler.js",
-    "memory-test": "npm run build:memory && node --expose-gc dist/memory-leak-tester.js",
-    "memory:check": "node --expose-gc -e \"console.log('Memory leak detection is active'); process.exit(0);\""
+    "type-check": "tsc --noEmit"
   },
   "keywords": [
     "weather",
@@ -74,13 +64,12 @@
     "prettier": "^3.6.2",
     "style-loader": "^4.0.0",
     "terser-webpack-plugin": "^5.3.11",
-    "ts-jest": "^29.4.4",
-    "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
+    "ts-loader": "^9.5.4",
     "typescript": "^5.9.2",
     "webpack": "^5.101.3",
     "webpack-cli": "^6.0.1",
-    "webpack-dev-server": "^5.2.2"
+    "webpack-dev-server": "^5.2.2",
+    "webpack-node-externals": "^3.0.0"
   },
   "dependencies": {
     "axios": "^1.12.2",

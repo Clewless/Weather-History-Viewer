@@ -4,7 +4,7 @@ import { join , dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { setImmediate } from 'timers';
 
-import { MemoryLeakTester, createTest } from './memory-leak-tester.js';
+import { MemoryLeakTester, createTest } from './memory-leak-tester';
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);

@@ -24,8 +24,8 @@ const API_BASE_URL = (() => {
         console.log(`[API] Using API_BASE_URL from environment: "${apiUrl}"`);
         return apiUrl;
       }
-    } catch (error) {
-      console.error(`[API] Invalid API_BASE_URL format: "${apiUrl}"`, error);
+    } catch (e: unknown) {
+      console.error(`[API] Invalid API_BASE_URL format: "${apiUrl}"`, e);
     }
   }
 
@@ -202,7 +202,7 @@ export const bffGetWeather = async (location: Location, startDate: string, endDa
 
     // Return properly typed response
     return response as WeatherDataResponse;
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof APIError || error instanceof NetworkError || error instanceof ValidationError) {
       // Re-throw custom errors as-is
       throw error;

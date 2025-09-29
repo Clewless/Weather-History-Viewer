@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import invariant from 'tiny-invariant';
 
-import { validateNumber, validateString, validateObject } from '../utils/invariants.js';
+import { validateNumber, validateString, validateObject } from '../utils/invariants';
 
 /**
  * Zod schema for validating search API request parameters

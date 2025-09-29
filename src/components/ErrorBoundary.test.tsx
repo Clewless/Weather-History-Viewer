@@ -48,7 +48,7 @@ describe('ErrorBoundary', () => {
   });
 
   it('uses custom fallback UI when provided', () => {
-    const customFallback = <div>Custom error message</div>;
+    const customFallback = () => <div>Custom error message</div>;
 
     const { getByText } = render(
       <ErrorBoundary fallback={customFallback}>
@@ -171,9 +171,9 @@ describe('ErrorBoundary', () => {
 
   it('works with nested ErrorBoundaries', () => {
     const { getByText, queryByText } = render(
-      <ErrorBoundary fallback={<div>Outer error</div>}>
+      <ErrorBoundary fallback={() => <div>Outer error</div>}>
         <div>
-          <ErrorBoundary fallback={<div>Inner error</div>}>
+          <ErrorBoundary fallback={() => <div>Inner error</div>}>
             <ThrowError shouldThrow={true} />
           </ErrorBoundary>
         </div>

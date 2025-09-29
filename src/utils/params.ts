@@ -2,7 +2,7 @@
  * Utility functions for safe parameter handling in Express routes
  */
 
-import { ValidationError } from '../errors.js';
+import { ValidationError } from '../errors';
 
 /**
  * Safely extracts a string parameter from request query

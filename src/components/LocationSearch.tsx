@@ -2,7 +2,7 @@ import { h } from 'preact';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'preact/hooks';
 
-import debounce from 'lodash/debounce';
+import { debounce } from 'lodash';
 
 import { bffSearchLocations as searchLocations } from '../api';
 import { Location } from '../types';

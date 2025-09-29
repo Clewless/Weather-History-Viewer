@@ -4,7 +4,7 @@
 
 import invariant from 'tiny-invariant';
 
-import { ErrorResponse } from './types.js';
+import { ErrorResponse } from './types';
 import { validateString, validateObject, validateNumber } from './utils/invariants';
 
 export class NetworkError extends Error {

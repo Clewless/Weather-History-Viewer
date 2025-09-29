@@ -4,7 +4,7 @@
  * Combines the best features from all existing cache implementations
  */
 
-import { CacheStats } from '../types.js';
+import { CacheStats } from '../types';
 
 import { getCurrentTimestamp } from './dateUtils';
 

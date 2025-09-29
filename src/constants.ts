@@ -18,7 +18,7 @@ export const GEO_BOUNDS = {
   MAX_LONGITUDE: 180,
 } as const;
 
-import { FallbackLocation } from './types.js';
+import { FallbackLocation } from './types';
 
 /** Fallback location data when geolocation fails */
 export const FALLBACK_LOCATION: FallbackLocation = {

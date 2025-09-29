@@ -1,8 +1,8 @@
 import { addDays } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
-import { HourlyWeatherData } from '../open-meteo.js';
-import { Location } from '../types.js';
+import { HourlyWeatherData } from '../open-meteo';
+import { Location } from '../types';
 
 import { formatTimeInTimezone, parseDateString } from './dateUtils';
 

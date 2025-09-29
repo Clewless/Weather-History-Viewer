@@ -2,8 +2,8 @@ import { performance } from 'perf_hooks';
 
 import axios from 'axios';
 
-import { MemoryLeakTester } from './memory-leak-tester.js';
-import { addApiTask } from './utils/queue.js';
+import { MemoryLeakTester } from './memory-leak-tester';
+import { addApiTask } from './utils/queue';
 
 // Configuration
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3001';

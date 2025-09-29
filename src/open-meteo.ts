@@ -2,21 +2,21 @@ import axios from 'axios';
 import axiosRetry, { exponentialDelay, isRetryableError } from 'axios-retry';
 import tzLookup from 'tz-lookup';
 
-import { APIError, wrapError } from './errors.js';
-import { validateDateRangeWithErrors, validateCoordinatesWithErrors, validateTimezoneWithErrors } from './utils/validation.js';
-import { validateWithZod, safeValidateWithZod } from './utils/zodValidation.js';
-import { getEnvVar } from './utils/env.js';
-import { parseAPITimeString } from './utils/dateUtils.js';
-import { Location } from './types.js';
-import { FALLBACK_LOCATION } from './constants.js';
+import { APIError, wrapError } from './errors';
+import { validateDateRangeWithErrors, validateCoordinatesWithErrors, validateTimezoneWithErrors } from './utils/validation';
+import { validateWithZod, safeValidateWithZod } from './utils/zodValidation';
+import { getEnvVar } from './utils/env';
+import { parseAPITimeString } from './utils/dateUtils';
+import { Location } from './types';
+import { FALLBACK_LOCATION } from './constants';
 // Import Zod schemas
 import {
   WeatherDataResponseSchema
-} from './schemas/weatherSchema.js';
+} from './schemas/weatherSchema';
 import {
   LocationSchema,
   WeatherLocationSchema
-} from './schemas/locationSchema.js';
+} from './schemas/locationSchema';
 
 /**
  * Core location data required for weather operations

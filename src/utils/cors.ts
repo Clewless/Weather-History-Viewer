@@ -1,6 +1,6 @@
 import cors from 'cors';
 
-import { getEnvVar } from './env.js';
+import { getEnvVar } from './env';
 
 /**
  * CORS configuration utility for handling multiple environments

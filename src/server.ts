@@ -6,34 +6,34 @@ import helmet from 'helmet';
 import { config } from 'dotenv';
 import rateLimit from 'express-rate-limit';
 
-import { ValidationError, createErrorResponse, NetworkError, wrapError } from './errors.js';
-import { getEnvVar, validateEnvVars } from './utils/env.js';
-import { createCorsMiddleware } from './utils/cors.js';
+import { ValidationError, createErrorResponse, NetworkError, wrapError } from './errors';
+import { getEnvVar, validateEnvVars } from './utils/env';
+import { createCorsMiddleware } from './utils/cors';
 import {
   validateDateRangeWithErrors,
   validateCoordinatesWithErrors,
   validateTimezoneWithErrors
-} from './utils/validation.js';
-import { validateWithZod } from './utils/zodValidation.js';
-import { NamespaceCacheManager } from './utils/unifiedCacheManager.js';
+} from './utils/validation';
+import { validateWithZod } from './utils/zodValidation';
+import { NamespaceCacheManager } from './utils/unifiedCacheManager';
 import {
   searchLocations,
   getHistoricalWeather,
   reverseGeocode,
   DailyWeatherData,
   HourlyWeatherData
-} from './open-meteo.js';
-import { Location as GeoLocation } from './types/location.js';
-import { getCurrentISODate } from './utils/dateUtils.js';
-import { CACHE_TTL, RATE_LIMITS } from './constants.js';
+} from './open-meteo';
+import { Location as GeoLocation } from './types/location';
+import { getCurrentISODate } from './utils/dateUtils';
+import { CACHE_TTL, RATE_LIMITS } from './constants';
 // Import Zod schemas
 import {
   SearchAPIParamsSchema,
   WeatherAPIRequestSchema,
   ReverseGeocodeAPIParamsSchema
-} from './schemas/apiSchema.js';
+} from './schemas/apiSchema';
 // Import memory monitoring
-import { MemoryLeakTester } from './memory-leak-tester.js';
+import { MemoryLeakTester } from './memory-leak-tester';
 
 /**
  * Simple HTML escaping function to prevent XSS

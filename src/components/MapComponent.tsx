@@ -30,13 +30,10 @@ export const MapComponent = ({ latitude, longitude, onLocationSelect }: MapProps
     // Add tile layer with custom attribution control
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '',
-      // Add event listeners for loading state
-      onload: () => setIsLoading(false),
-      onloadstart: () => setIsLoading(true)
     }).addTo(map);
 
     // Custom attribution control for better styling
-    const attributionControl = L.control({position: 'bottomright'});
+    const attributionControl = new L.Control({position: 'bottomright'});
     attributionControl.onAdd = function(_map: L.Map) {
       const div = L.DomUtil.create('div', 'leaflet-control-attribution custom-attribution');
       div.innerHTML = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
@@ -65,11 +62,7 @@ export const MapComponent = ({ latitude, longitude, onLocationSelect }: MapProps
     // Handle map loading events
     map.on('tileloadstart', () => setIsLoading(true));
     map.on('tileload', () => {
-      // Check if all tiles are loaded
-      const tilesToLoad = map._tilesToLoad as number;
-      if (tilesToLoad === 0) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     });
     map.on('tileerror', () => setIsLoading(false)); // Hide loading if tile fails
 

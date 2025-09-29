@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { writeHeapSnapshot } from 'v8';
 
-import { MemoryLeakTester, MemoryTestResult } from './memory-leak-tester.js';
+import { MemoryLeakTester, MemoryTestResult } from './memory-leak-tester';
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
