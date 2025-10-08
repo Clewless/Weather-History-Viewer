@@ -22,7 +22,7 @@ export const APIDebugTool = ({ apiBaseUrl = 'http://localhost:3001/api' }: APIDe
   const testAPI = async () => {
     setIsLoading(true);
     setTestResults([]);
-    addLog('🧪 Starting API connectivity test...');
+    addLog('Starting API connectivity test...');
 
     try {
       // Create all test promises
@@ -59,17 +59,17 @@ export const APIDebugTool = ({ apiBaseUrl = 'http://localhost:3001/api' }: APIDe
         
         if (result.status === 'fulfilled') {
           const { name, response, data } = result.value;
-          addLog(`${testNumber}️⃣ Testing ${testName}...`);
-          addLog(`✅ ${name}: ${response.status} ${response.statusText}`);
-          
+          addLog(`Testing ${testName}...`);
+          addLog(`${name}: ${response.status} ${response.statusText}`);
+
           if (data) {
             if (name === 'Health endpoint') {
-              addLog(`📊 Server info: ${JSON.stringify(data)}`);
+              addLog(`Server info: ${JSON.stringify(data)}`);
             } else if (name === 'Search endpoint') {
-              addLog(`📍 Found ${Array.isArray(data) ? data.length : 0} locations`);
+              addLog(`Found ${Array.isArray(data) ? data.length : 0} locations`);
             } else if (name === 'Debug configuration') {
-              addLog(`📋 Expected API_BASE_URL: ${data.expectedFrontendConfig?.API_BASE_URL}`);
-              addLog(`🔗 Server base URL: ${data.server?.baseUrl}`);
+              addLog(`Expected API_BASE_URL: ${data.expectedFrontendConfig?.API_BASE_URL}`);
+              addLog(`Server base URL: ${data.server?.baseUrl}`);
             }
           }
         } else {
@@ -84,7 +84,7 @@ export const APIDebugTool = ({ apiBaseUrl = 'http://localhost:3001/api' }: APIDe
       });
 
     } catch (error: unknown) {
-      addLog(`❌ Test failed with error: ${error instanceof Error ? error.message : String(error)}`);
+      addLog(`Test failed with error: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsLoading(false);
     }
@@ -96,6 +96,7 @@ export const APIDebugTool = ({ apiBaseUrl = 'http://localhost:3001/api' }: APIDe
 
   // Only show in development
   if (process.env.NODE_ENV !== 'development') {
+    console.warn('APIDebugTool is not available in production.');
     return null;
   }
 
@@ -118,7 +119,7 @@ export const APIDebugTool = ({ apiBaseUrl = 'http://localhost:3001/api' }: APIDe
       flexDirection: 'column'
     }}>
       <div style={{ marginBottom: '10px', fontWeight: 'bold' }}>
-        🔧 API Debug Tool
+        API Debug Tool
       </div>
 
       <div style={{ marginBottom: '10px' }}>

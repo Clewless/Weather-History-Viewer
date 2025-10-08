@@ -106,6 +106,7 @@ app.use(
 );
 
 // Serve static files from the public directory
+// eslint-disable-next-line import/no-named-as-default-member
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // (Env variables already computed above)
@@ -312,10 +313,13 @@ app.get('/api/weather', async (req, res) => {
  * e.g., /api/reverse-geocode?lat=40.71&lon=-74.01
  */
 app.get('/api/reverse-geocode', async (req, res) => {
+  console.log(`[DEBUG] Reverse geocode request: lat=${req.query.lat}, lon=${req.query.lon}`);
   try {
     // Validate and sanitize query parameters using Zod
     const validatedParams = validateWithZod(ReverseGeocodeAPIParamsSchema, req.query, 'Invalid reverse geocode parameters') as { lat: number; lon: number };
     const { lat, lon } = validatedParams;
+
+    console.log(`[DEBUG] Reverse geocode validated params: lat=${lat}, lon=${lon}`);
 
     // Validate coordinates
     validateCoordinatesWithErrors(lat, lon);
@@ -324,21 +328,27 @@ app.get('/api/reverse-geocode', async (req, res) => {
     const cacheKey = `${lat}:${lon}`;
     const cachedResult = cache.get('reverse', cacheKey);
     if (cachedResult) {
+      console.log(`[DEBUG] Reverse geocode cache hit for ${cacheKey}`);
       return res.json(cachedResult);
     }
 
+    console.log(`[DEBUG] Reverse geocode cache miss, calling Open-Meteo API for ${lat}, ${lon}`);
     const location: GeoLocation = await reverseGeocode(lat, lon);
-    
+
+    console.log(`[DEBUG] Reverse geocode success: ${location.name}, ${location.country}`);
+
     // Cache the result
     cache.set('reverse', cacheKey, location);
-    
+
     res.json(location);
   } catch (error: unknown) {
+    console.error(`[DEBUG] Reverse geocode failed for lat=${req.query.lat}, lon=${req.query.lon}:`, error);
     const wrappedError = wrapError(error, 'Reverse geocode failed');
     const errorResponse = createErrorResponse(
       wrappedError,
       wrappedError instanceof ValidationError ? 400 : 500
     );
+    console.error(`[DEBUG] Reverse geocode error response:`, errorResponse);
     res.status(errorResponse.statusCode || 500).json(errorResponse);
   }
 });

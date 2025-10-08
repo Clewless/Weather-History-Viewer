@@ -1,4 +1,3 @@
-
 import { h } from 'preact';
 
 import { render, screen, fireEvent } from '@testing-library/preact';
@@ -15,6 +14,22 @@ jest.mock('../api', () => ({
 }));
 
 describe('App', () => {
+  beforeAll(() => {
+    Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        value: jest.fn().mockImplementation(query => ({
+            matches: false,
+            media: query,
+            onchange: null,
+            addListener: jest.fn(),
+            removeListener: jest.fn(),
+            addEventListener: jest.fn(),
+            removeEventListener: jest.fn(),
+            dispatchEvent: jest.fn(),
+        })),
+    });
+});
+
   beforeEach(() => {
     jest.clearAllMocks();
   });

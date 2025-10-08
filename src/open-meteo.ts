@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import axiosRetry, { exponentialDelay, isRetryableError } from 'axios-retry';
 import tzLookup from 'tz-lookup';
 
@@ -8,7 +8,6 @@ import { validateWithZod, safeValidateWithZod } from './utils/zodValidation';
 import { getEnvVar } from './utils/env';
 import { parseAPITimeString } from './utils/dateUtils';
 import { Location } from './types';
-import { FALLBACK_LOCATION } from './constants';
 // Import Zod schemas
 import {
   WeatherDataResponseSchema
@@ -95,44 +94,63 @@ axiosRetry(axiosInstance, {
 });
 
 /**
- * Searches for locations using the Open-Meteo Geocoding API.
+ * Searches for locations using the Nominatim (OpenStreetMap) Geocoding API.
  * @param query The search query (e.g., a city name).
  * @returns A promise that resolves to an array of matching locations.
  */
 export const searchLocations = async (query: string): Promise<Location[]> => {
-  const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
-  url.searchParams.append('name', query);
-  url.searchParams.append('count', '5');
-  // Add API key to requests if provided in environment variables
-  // Using an API key increases rate limits and is recommended for production use
-  // Get a free key at https://open-meteo.com/en/docs
-  const headers: Record<string, string> = {};
-  const apiKey = getEnvVar('OPEN_METEO_API_KEY');
-  if (apiKey) {
-    headers['X-API-Key'] = apiKey;
-  }
+  const url = new URL('https://nominatim.openstreetmap.org/search');
+  url.searchParams.append('format', 'json');
+  url.searchParams.append('q', query);
+  url.searchParams.append('limit', '5');
+  url.searchParams.append('addressdetails', '1');
+  const headers: Record<string, string> = {
+    'User-Agent': 'WeatherHistoryViewer/1.0'
+  };
 
   try {
     const response = await axiosInstance.get(url.toString(), { headers });
-    const {data} = response;
+    const { data } = response;
 
-    if (!data.results || !Array.isArray(data.results)) {
-      throw new APIError('Invalid geocoding response: missing or invalid results array', response.status, data);
+    if (!Array.isArray(data)) {
+      throw new APIError('Invalid geocoding response: expected array', response.status, data);
     }
 
-    // Validate each location in the results array
-    const validatedLocations: Location[] = [];
-    for (const location of data.results) {
-      const validationResult = safeValidateWithZod(LocationSchema, location);
-      if (validationResult.success) {
-        validatedLocations.push(validationResult.data as Location);
-      } else {
-        console.warn('Invalid location data received from API:', validationResult.error);
-        // We'll skip invalid locations rather than failing the entire request
+    // Map Nominatim response to Location interface
+    const locations: Location[] = [];
+    for (const item of data) {
+      if (item.lat && item.lon && item.display_name) {
+        const latitude = parseFloat(item.lat);
+        const longitude = parseFloat(item.lon);
+
+        const location: Location = {
+          id: parseInt(item.place_id) || Math.floor(Math.random() * 1000000),
+          name: item.display_name?.split(',')[0]?.trim() || item.display_name || 'Unknown Location',
+          latitude,
+          longitude,
+          elevation: 0,
+          feature_code: item.class || 'PPL',
+          country_code: item.address?.country_code?.toUpperCase() || 'XX',
+          timezone: tzLookup(latitude, longitude) || 'UTC',
+          country: item.address?.country || 'Unknown',
+          admin1: item.address?.state || '',
+          admin2: item.address?.county || '',
+          admin3: item.address?.city || item.address?.town || item.address?.village || '',
+          population: 0
+        };
+
+        // Validate the location data with Zod
+        const validationResult = safeValidateWithZod(LocationSchema, location);
+        if (validationResult.success) {
+          locations.push(validationResult.data as Location);
+        } else {
+          console.warn('Invalid location data received from Nominatim API:', validationResult.error);
+          // We'll skip invalid locations rather than failing the entire request
+        }
       }
     }
 
-    return validatedLocations;
+    return locations;
   } catch (error: unknown) {
     throw wrapError(error, 'Geocoding search failed');
   }
@@ -275,74 +293,82 @@ export const getHistoricalWeather = async (
 };
 
 /**
- * Gets the location for a given latitude and longitude using the Open-Meteo Geocoding API.
+ * Gets the location for a given latitude and longitude using Nominatim (OpenStreetMap) reverse geocoding.
  * @param latitude The latitude.
  * @param longitude The longitude.
  * @returns A promise that resolves to a location.
  */
 export const reverseGeocode = async (
-  latitude: number,
-  longitude: number
-): Promise<Location> => {
-  // Try the reverse geocoding endpoint first
-  const url = new URL('https://geocoding-api.open-meteo.com/v1/reverse');
-  url.searchParams.append('latitude', latitude.toString());
-  url.searchParams.append('longitude', longitude.toString());
-  const headers: Record<string, string> = {};
-  const apiKey = getEnvVar('OPEN_METEO_API_KEY');
-  if (apiKey) {
-    headers['X-API-Key'] = apiKey;
-  }
-
-  try {
-    const response = await axiosInstance.get(url.toString(), { headers });
-    const {data} = response;
-
-    // Check if we got a valid response
-    if (data.error) {
-      throw new APIError(`Reverse geocode API error: ${data.reason}`, response.status, data);
-    }
-
-    if (!data.results || !Array.isArray(data.results) || data.results.length === 0) {
-      throw new APIError('Invalid reverse geocode response: no results found', response.status, data);
-    }
-
-    const result = data.results[0];
-    
-    // Validate the location data with Zod
-    const validatedLocation = validateWithZod(LocationSchema, result, 'Invalid location data from reverse geocode API') as Location;
-    
-    if (!validatedLocation.latitude || !validatedLocation.longitude || !validatedLocation.timezone || !validatedLocation.name) {
-      throw new APIError('Invalid reverse geocode response: missing required location fields', response.status, data);
-    }
-
-    return validatedLocation;
-  } catch (error: unknown) {
-    // Log the error for debugging purposes
-    console.error('Reverse geocoding failed:', error instanceof Error ? error.message : error);
-
-    // If reverse geocoding fails, we'll create a fallback location
-    // Create a fallback location with detected timezone from coordinates
-    const fallbackLocation: Location = {
-      id: 1, // Use positive ID to satisfy schema
-      name: `Location at ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-      latitude,
-      longitude,
-      elevation: FALLBACK_LOCATION.ELEVATION,
-      feature_code: FALLBACK_LOCATION.FEATURE_CODE,
-      country_code: FALLBACK_LOCATION.COUNTRY_CODE,
-      timezone: tzLookup(latitude, longitude) || FALLBACK_LOCATION.TIMEZONE,
-      country: FALLBACK_LOCATION.COUNTRY,
-      // Add a flag to indicate this is a fallback location
-      isFallback: true as const
+    latitude: number,
+    longitude: number
+  ): Promise<Location> => {
+    // Use Nominatim for reverse geocoding since Open-Meteo doesn't support it
+    const url = new URL('https://nominatim.openstreetmap.org/reverse');
+    url.searchParams.append('format', 'json');
+    url.searchParams.append('lat', latitude.toString());
+    url.searchParams.append('lon', longitude.toString());
+    url.searchParams.append('addressdetails', '1');
+    url.searchParams.append('zoom', '10'); // Get reasonably detailed address
+    const headers: Record<string, string> = {
+      'User-Agent': 'WeatherHistoryViewer/1.0'
     };
 
-    // Validate the fallback location with Zod
-    const validatedFallbackLocation = validateWithZod(LocationSchema, fallbackLocation, 'Invalid fallback location data') as Location;
-    
-    // Log when fallback is used
-    console.warn(`Using fallback location for coordinates: ${latitude}, ${longitude}`);
+    try {
+      console.log(`[DEBUG] Reverse geocoding request: ${url.toString()}`);
+      const response = await axiosInstance.get(url.toString(), { headers });
+      const {data} = response;
+      console.log(`[DEBUG] Reverse geocoding response status: ${response.status}`);
+      console.log(`[DEBUG] Reverse geocoding response data:`, data);
 
-    return validatedFallbackLocation;
-  }
-};
+      // Check if we got a valid response
+      if (data.error) {
+        console.error(`[DEBUG] Reverse geocode API returned error: ${data.error}`);
+        throw new APIError(`Reverse geocode API error: ${data.error}`, response.status, data);
+      }
+
+      if (!data || !data.lat || !data.lon) {
+        console.error(`[DEBUG] Reverse geocode API returned invalid data for coordinates: ${latitude}, ${longitude}`);
+        throw new APIError('Invalid reverse geocode response: missing coordinate data', response.status, data);
+      }
+
+      // Map Nominatim response to Location interface
+      const location: Location = {
+        id: parseInt(data.place_id) || Math.floor(Math.random() * 1000000), // Use place_id or generate ID
+        name: data.display_name?.split(',')[0]?.trim() || data.display_name || 'Unknown Location',
+        latitude: parseFloat(data.lat),
+        longitude: parseFloat(data.lon),
+        elevation: 0, // Elevation not provided by Nominatim
+        feature_code: data.class || 'PPL',
+        country_code: data.address?.country_code?.toUpperCase() || 'XX',
+        timezone: tzLookup(latitude, longitude) || 'UTC', // Use tz-lookup library
+        country: data.address?.country || 'Unknown',
+        admin1: data.address?.state || '',
+        admin2: data.address?.county || '',
+        admin3: data.address?.city || data.address?.town || data.address?.village || '',
+        population: 0 // Population not provided by Nominatim
+      };
+
+      console.log(`[DEBUG] Mapped location:`, location);
+
+      // Validate the location data with Zod
+      const validatedLocation = validateWithZod(LocationSchema, location, 'Invalid location data from reverse geocode API') as Location;
+
+      if (!validatedLocation.latitude || !validatedLocation.longitude || !validatedLocation.timezone || !validatedLocation.name) {
+        console.error(`[DEBUG] Reverse geocode response missing required fields:`, validatedLocation);
+        throw new APIError('Invalid reverse geocode response: missing required location fields', response.status, data);
+      }
+
+      console.log(`[DEBUG] Successfully reverse geocoded to: ${validatedLocation.name}, ${validatedLocation.country}`);
+      return validatedLocation;
+    } catch (error: unknown) {
+      // Enhanced logging for debugging purposes
+      console.error(`[DEBUG] Reverse geocoding failed for coordinates (${latitude}, ${longitude}):`, error instanceof Error ? error.message : error);
+      if (error instanceof AxiosError) {
+        console.error(`[DEBUG] Response status: ${error.response?.status}`);
+        console.error(`[DEBUG] Response data:`, error.response?.data);
+      }
+
+      // Re-throw the error to be handled by the caller
+      throw error;
+    }
+  };

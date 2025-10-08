@@ -8,7 +8,7 @@ import { Location } from '../types';
 import { DailyWeatherData, HourlyWeatherData } from '../open-meteo';
 import { NamespaceCacheManager } from '../utils/unifiedCacheManager';
 import { getCurrentDateString, parseDateString } from '../utils/dateUtils';
-import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, CACHE_TTL } from '../constants';
+import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, CACHE_TTL, APP_VERSION } from '../constants';
 import { ValidationError, APIError, NetworkError } from '../errors';
 
 import { MapComponent } from './MapComponent';
@@ -35,7 +35,7 @@ const App = () => {
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [temperatureUnit, setTemperatureUnit] = useState<'C' | 'F'>('F');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
   const { error, handleError, clearError } = useErrorHandler();
 
   // Use refs to track cache managers for proper cleanup
@@ -174,13 +174,16 @@ const App = () => {
   }, [clearError, setCurrentLocation, setGeolocationRequested]);
 
   const handleMapLocationSelect = useCallback(async (lat: number, lng: number) => {
+    console.log(`[DEBUG] Map location select: lat=${lat}, lng=${lng}`);
     clearError();
     setIsLoading(true);
     try {
       const location = await cachedReverseGeocode(lat, lng);
+      console.log(`[DEBUG] Reverse geocode success:`, location);
       setCurrentLocation(location);
       // fetch triggered by useEffect
-    } catch {
+    } catch (error) {
+      console.error(`[DEBUG] Reverse geocode failed in map select:`, error);
       handleError('Could not determine location name. Using coordinates.', 'warning');
       const fallbackLocation: Location = {
         id: 0,
@@ -260,25 +263,8 @@ const App = () => {
 
   const handleDateChangeDebounced = useCallback((date: string) => debouncedDateChange(date), [debouncedDateChange]);
 
-  useEffect(() => {
-    // Load default location without geolocation
-    const defaultLocation: Location = {
-      id: 5128581,
-      name: 'New York',
-      latitude: DEFAULT_LATITUDE,
-      longitude: DEFAULT_LONGITUDE,
-      elevation: 10,
-      feature_code: 'PPL',
-      country_code: 'US',
-      timezone: 'America/New_York',
-      country: 'United States'
-    };
-  
-    setIsLoading(true);
-    setCurrentLocation(defaultLocation);
-    setGeolocationRequested(false);
-    handleError('Using default location: New York', 'info');
-  }, [fetchWeatherData, clearError, handleError, selectedDate, setCurrentLocation]);
+  // Don't load default location automatically - wait for user selection
+  // useEffect for default location removed to prevent auto-selection
 
   useEffect(() => {
     console.log('[DEBUG] App useEffect triggered:', {
@@ -289,6 +275,7 @@ const App = () => {
       dateIsValid: selectedDate ? /^\d{4}-\d{2}-\d{2}$/.test(selectedDate) : false
     });
 
+    // Only fetch weather data if both location and date are selected
     if (currentLocation && selectedDate) {
       console.log('[DEBUG] Calling fetchWeatherData with:', {
         location: currentLocation.name,
@@ -297,6 +284,8 @@ const App = () => {
         dateFormat: selectedDate.match(/^\d{4}-\d{2}-\d{2}$/) ? 'valid' : 'invalid'
       });
       fetchWeatherData(currentLocation, selectedDate, selectedDate);
+    } else {
+      console.log('[DEBUG] Missing location or date - not fetching weather data');
     }
   }, [currentLocation, selectedDate, fetchWeatherData]);
 
@@ -322,7 +311,7 @@ const App = () => {
 
   // Initialize dark mode from localStorage or system preference
   useEffect(() => {
-    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    if (typeof window !== 'undefined') {
       try {
         const savedDarkMode = localStorage.getItem('darkMode');
         const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -341,7 +330,7 @@ const App = () => {
 
   // Apply dark mode class to body
   useEffect(() => {
-    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    if (typeof window !== 'undefined') {
       try {
         if (isDarkMode) {
           document.body.classList.add('dark-mode');
@@ -380,8 +369,8 @@ const App = () => {
         </button>
         
         <header className="header">
-          <h1>Weather History Viewer</h1>
-          <p>Explore historical weather data from 1940 to present</p>
+          <h1>Weather History Viewer <span className="version-text">v{APP_VERSION.CURRENT}</span></h1>
+          <p className="header-subtitle">Vibe Coded by Clewless (sorry)</p>
         </header>
 
         {error && !isLoading && (

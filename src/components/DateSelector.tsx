@@ -10,8 +10,6 @@ import {
   generateCalendarDays,
   getPreviousMonth,
   getNextMonth,
-  isToday,
-  isCurrentMonth,
   formatDateForDisplay,
   formatDateForInput,
   getMonthName
@@ -49,19 +47,6 @@ export const DateSelector = ({
     setCurrentMonth(getNextMonth(currentMonth));
   };
   
-  const handleDateSelect = (date: Date) => {
-    if (date < minDate || date > maxDate) return;
-
-    const dateString = formatDateForInput(date);
-    console.log('[DEBUG] DateSelector handleDateSelect:', {
-      originalDate: date,
-      dateString,
-      minDate: formatDateForInput(minDate),
-      maxDate: formatDateForInput(maxDate)
-    });
-    onDateChange(dateString);
-  };
-  
   const isSelectedDate = (date: Date): boolean => {
     return formatDateForInput(date) === selectedDate;
   };
@@ -97,7 +82,7 @@ export const DateSelector = ({
           disabled={loading}
           aria-label="Toggle calendar"
         >
-          📅
+          Calendar
         </button>
       </div>
       
@@ -111,22 +96,19 @@ export const DateSelector = ({
               onClick={handlePrevMonth}
               aria-label="Previous month"
             >
-              ‹
+              Previous
             </button>
-            <div class="calendar-month">
-              {getMonthName(currentMonth)}
-            </div>
+            <h4 id="calendar-month-label">{getMonthName(currentMonth)}</h4>
             <button
               type="button"
               class="calendar-nav"
               onClick={handleNextMonth}
               aria-label="Next month"
             >
-              ›
+              Next
             </button>
           </div>
-          
-          <div class="calendar-grid">
+          <div class="calendar-grid" role="grid" aria-labelledby="calendar-month-label">
             {/* Day headers */}
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
               <div key={day} class="calendar-day-header">{day}</div>
@@ -137,14 +119,14 @@ export const DateSelector = ({
               <button
                 key={index}
                 type="button"
-                class={`calendar-day ${!isCurrentMonth(date, currentMonth) ? 'other-month' : ''} ${isSelectedDate(date) ? 'selected' : ''} ${isToday(date) ? 'today' : ''}`}
-                onClick={() => {
-                  handleDateSelect(date);
-                  setShowCalendar(false);
-                }}
+                class="calendar-day"
                 disabled={date < minDate || date > maxDate || loading}
                 aria-label={formatDateForDisplay(date)}
                 aria-pressed={isSelectedDate(date)}
+                onClick={() => {
+                  onDateChange(formatDateForInput(date));
+                  setShowCalendar(false);
+                }}
               >
                 {date.getDate()}
               </button>
@@ -164,8 +146,7 @@ export const DateSelector = ({
       
       {loading && (
         <div class="loading" role="status" aria-live="polite">
-          <span class="loading-spinner"></span>
-          Updating...
+          <div class="loading-text">.....</div>
         </div>
       )}
       <p class="date-hint">

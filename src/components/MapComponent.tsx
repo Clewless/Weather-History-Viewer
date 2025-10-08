@@ -1,11 +1,21 @@
 import { h } from 'preact';
+import * as preact from 'preact';
 
-import type { JSX } from 'preact/jsx-runtime';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
-import L from 'leaflet';
-L.Icon.Default.imagePath = '';
+import { map as createMap, tileLayer, Icon, marker as createMarker, type Marker, type LeafletMouseEvent } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+
+// Fix for Leaflet marker icons in webpack
+try {
+  Icon.Default.mergeOptions({
+    iconRetinaUrl: '/marker-icon-2x.png',
+    iconUrl: '/marker-icon.png',
+    shadowUrl: '/marker-shadow.png'
+  });
+} catch (error) {
+  console.warn('Failed to set absolute paths for Leaflet icons:', error);
+}
 
 interface MapProps {
   latitude: number;
@@ -13,106 +23,92 @@ interface MapProps {
   onLocationSelect?: (lat: number, lng: number) => void;
 }
 
-export const MapComponent = ({ latitude, longitude, onLocationSelect }: MapProps): JSX.Element => {
-  const mapRef = useRef<L.Map | null>(null);
-  const markerRef = useRef<L.Marker | null>(null);
+export const MapComponent = ({ latitude, longitude, onLocationSelect }: MapProps): preact.JSX.Element => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const markerRef = useRef<Marker | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Listen for dark mode changes
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDarkMode(document.body.classList.contains('dark-mode'));
+    };
+    
+    checkDarkMode();
+    const observer = window.MutationObserver ? new window.MutationObserver(checkDarkMode) : null;
+    if (observer) {
+      observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    return () => observer?.disconnect();
+  }, []);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current) {
+      return;
+    }
 
-    // Initialize map with zoom controls
-    const map = L.map(containerRef.current, {
+    const map = createMap(containerRef.current, {
       zoomControl: true
     }).setView([latitude, longitude], 10);
 
-    // Add tile layer with custom attribution control
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '',
+    // Use dark or light tiles based on current mode
+    const tileUrl = isDarkMode
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    
+    const attribution = isDarkMode
+      ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+    tileLayer(tileUrl, {
+      attribution,
+      maxZoom: 19
     }).addTo(map);
 
-    // Custom attribution control for better styling
-    const attributionControl = new L.Control({position: 'bottomright'});
-    attributionControl.onAdd = function(_map: L.Map) {
-      const div = L.DomUtil.create('div', 'leaflet-control-attribution custom-attribution');
-      div.innerHTML = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-      div.style.background = 'rgba(255,255,255,0.8)';
-      div.style.padding = '2px 5px';
-      div.style.borderRadius = '3px';
-      div.style.fontSize = '12px';
-      div.style.color = '#333';
-      return div;
-    };
-    attributionControl.addTo(map);
+    // Add a marker at the initial location
+    markerRef.current = createMarker([latitude, longitude]).addTo(map);
 
-    // Add marker
-    const marker = L.marker([latitude, longitude]).addTo(map);
-    marker.bindPopup('Selected location').openPopup();
-
-    mapRef.current = map;
-    markerRef.current = marker;
-
-    // Handle click
-    map.on('click', (e) => {
-      const { lat, lng } = e.latlng;
-      onLocationSelect?.(lat, lng);
-    });
-
-    // Handle map loading events
-    map.on('tileloadstart', () => setIsLoading(true));
-    map.on('tileload', () => {
-      setIsLoading(false);
-    });
-    map.on('tileerror', () => setIsLoading(false)); // Hide loading if tile fails
+    // Add click event listener to handle location selection
+    if (onLocationSelect) {
+      const handleMapClick = (event: LeafletMouseEvent) => {
+        const { lat, lng } = event.latlng;
+        onLocationSelect(lat, lng);
+        
+        // Update the marker position
+        if (markerRef.current) {
+          markerRef.current.setLatLng([lat, lng]);
+        } else {
+          markerRef.current = createMarker([lat, lng]).addTo(map);
+        }
+      };
+      
+      map.on('click', handleMapClick);
+      
+      // Clean up the event listener when component unmounts
+      return () => {
+        map.off('click', handleMapClick);
+        if (markerRef.current) {
+          map.removeLayer(markerRef.current);
+        }
+        map.remove();
+      };
+    }
 
     return () => {
+      if (markerRef.current) {
+        map.removeLayer(markerRef.current);
+      }
       map.remove();
     };
-  }, [latitude, longitude, onLocationSelect]);
-
-  // Update marker when location changes
-  useEffect(() => {
-    if (mapRef.current && markerRef.current) {
-      mapRef.current.setView([latitude, longitude], 10);
-      markerRef.current.setLatLng([latitude, longitude]);
-      markerRef.current.openPopup();
-    }
-  }, [latitude, longitude]);
+  }, [latitude, longitude, onLocationSelect, isDarkMode]);
 
   return (
     <div
       ref={containerRef}
-      class="map-container"
-      style={{
-        width: '100%',
-        borderRadius: '0.5rem',
-        overflow: 'hidden',
-        position: 'relative' // Add position for loading overlay
-      }}
+      className="map-container"
       aria-label="Interactive map for location selection"
       tabIndex={0}
-    >
-      {isLoading && (
-        <div 
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'rgba(255, 255, 255, 0.7)',
-            zIndex: 1000,
-            borderRadius: '0.5rem'
-          }}
-          aria-label="Map is loading"
-        >
-          <div class="loading-spinner" />
-        </div>
-      )}
-    </div>
+    />
   );
 };

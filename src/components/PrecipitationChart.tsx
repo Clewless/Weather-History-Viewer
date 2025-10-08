@@ -204,8 +204,8 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
   if (isLoading) {
     return (
       <div class="chart-container">
-        <h4 class="skeleton skeleton-title"></h4>
-        <div class="skeleton skeleton-chart"></div>
+        <h4>Precipitation & Cloud Cover</h4>
+        <div class="loading-text">.....</div>
       </div>
     );
   }
@@ -224,8 +224,8 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
   if (!weatherData || !location) {
     return (
       <div class="chart-container">
-        <h4 class="skeleton skeleton-title"></h4>
-        <div class="skeleton skeleton-chart"></div>
+        <h4>Precipitation & Cloud Cover</h4>
+        <div class="loading-text">.....</div>
       </div>
     );
   }

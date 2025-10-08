@@ -81,3 +81,16 @@ export const RATE_LIMITS = {
     MAX_REQUESTS: 50,
   },
 } as const;
+
+// =========================================
+// APPLICATION VERSION
+// =========================================
+
+/** Application version information */
+export const APP_VERSION = {
+  CURRENT: '0.12 (alpha)',
+  MAJOR: 0,
+  MINOR: 12,
+  PATCH: 0,
+  STATUS: 'alpha',
+} as const;

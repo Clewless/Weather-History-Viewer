@@ -32,19 +32,14 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
     return (
       <div class="weather-info">
         <div class="weather-header">
-          <div class="skeleton skeleton-title"></div>
-          <div class="skeleton skeleton-button"></div>
+          <div class="loading-text">.....</div>
         </div>
         <div class="daily-weather">
-          <h4 class="skeleton skeleton-title"></h4>
+          <h4>Loading weather data</h4>
           <div class="daily-grid">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} class="daily-item">
-                <div class="skeleton skeleton-text"></div>
-                <div class="skeleton skeleton-card" style="height: 120px;"></div>
-                <div class="skeleton skeleton-text" style="width: 80%;"></div>
-              </div>
-            ))}
+            <div class="daily-item">
+              <div class="loading-text">.....</div>
+            </div>
           </div>
         </div>
       </div>
@@ -55,8 +50,7 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
     return (
       <div class="weather-info">
         <div class="weather-header">
-          <div class="location-name skeleton skeleton-title"></div>
-          <div class="temp-toggle skeleton skeleton-button"></div>
+          <div class="loading-text">.....</div>
         </div>
         <div class="daily-weather">
           <h4>Daily Summary</h4>
@@ -244,15 +238,15 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
                 {/* Horizontal Weather Details */}
                 <div class="weather-details">
                   <div class="detail-item precip">
-                    <span class="detail-icon">💧</span>
+                    <span class="detail-icon">Rain</span>
                     <span class="detail-value">{formatPrecipitation(precip)}mm</span>
                   </div>
                   <div class="detail-item wind">
-                    <span class="detail-icon">💨</span>
+                    <span class="detail-icon">Wind</span>
                     <span class="detail-value">{windSpeed.toFixed(0)} km/h</span>
                   </div>
                   <div class="detail-item humidity">
-                    <span class="detail-icon">💧</span>
+                    <span class="detail-icon">Humidity</span>
                     <span class="detail-value">{humidity.toFixed(0)}%</span>
                   </div>
                 </div>
@@ -261,13 +255,13 @@ export const WeatherDisplay = ({ weatherData, location, temperatureUnit, onTempe
                 <div class="sun-times">
                   {sunrise && (
                     <div class="sun-time">
-                      <span class="sun-icon">🌅</span>
+                      <span class="sun-icon">Sunrise</span>
                       <span class="sun-time-text">{formatTime(sunrise, location?.timezone || 'UTC').split(' ')[0]}</span>
                     </div>
                   )}
                   {sunset && (
                     <div class="sun-time">
-                      <span class="sun-icon">🌇</span>
+                      <span class="sun-icon">Sunset</span>
                       <span class="sun-time-text">{formatTime(sunset, location?.timezone || 'UTC').split(' ')[0]}</span>
                     </div>
                   )}

@@ -179,8 +179,8 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
   if (isLoading) {
     return (
       <div class="chart-container">
-        <h4 class="skeleton skeleton-title"></h4>
-        <div class="skeleton skeleton-chart"></div>
+        <h4>Temperature</h4>
+        <div class="loading-text">.....</div>
       </div>
     );
   }
@@ -199,8 +199,8 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
   if (!weatherData || !location) {
     return (
       <div class="chart-container">
-        <h4 class="skeleton skeleton-title"></h4>
-        <div class="skeleton skeleton-chart"></div>
+        <h4>Temperature</h4>
+        <div class="loading-text">.....</div>
       </div>
     );
   }

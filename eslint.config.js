@@ -33,10 +33,12 @@ export default [
         window: 'readonly',
         document: 'readonly',
         console: 'readonly',
+        localStorage: 'readonly',
         // Web APIs
         fetch: 'readonly',
         AbortController: 'readonly',
         URL: 'readonly',
+        MutationObserver: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
         setInterval: 'readonly',

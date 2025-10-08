@@ -76,7 +76,6 @@ module.exports = (env, argv) => {
         systemvars: true,
       }),
       new webpack.DefinePlugin({
-        'process.env.API_BASE_URL': JSON.stringify(process.env.API_BASE_URL),
         'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
       }),
       ...(isProduction ? [new MiniCssExtractPlugin({ filename: '[name].[contenthash].css' })] : []),
@@ -127,7 +126,6 @@ module.exports = (env, argv) => {
       }),
       new webpack.DefinePlugin({
         'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
-        'process.env.API_BASE_URL': JSON.stringify(process.env.API_BASE_URL),
       }),
     ],
     node: {

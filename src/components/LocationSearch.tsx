@@ -2,7 +2,7 @@ import { h } from 'preact';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'preact/hooks';
 
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 
 import { bffSearchLocations as searchLocations } from '../api';
 import { Location } from '../types';
@@ -113,8 +113,7 @@ export const LocationSearch = ({ onLocationSelect, currentLocation }: LocationSe
         <div class="search-suggestions" role="listbox" aria-label="Location suggestions">
           {isLoading && (
             <div class="loading" role="status" aria-live="polite">
-              <span class="loading-spinner"></span>
-              Searching...
+              <div class="loading-text">.....</div>
             </div>
           )}
           

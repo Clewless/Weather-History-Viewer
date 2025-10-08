@@ -4,13 +4,13 @@ import type { ComponentType, VNode } from 'preact';
 interface ErrorBoundaryState {
   hasError: boolean;
   error?: Error;
-  errorInfo?: any;
+  errorInfo?: { componentStack: string };
 }
 
 interface ErrorBoundaryProps {
   children: VNode;
-  fallback?: ComponentType<{ error: Error | null; errorInfo?: any; resetError: () => void }>;
-  onError?: (error: Error, errorInfo: any) => void;
+  fallback?: ComponentType<{ error: Error | null; errorInfo?: { componentStack: string }; resetError: () => void }>;
+  onError?: (error: Error, errorInfo: { componentStack: string }) => void;
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -23,11 +23,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: any) {
-    console.error('Error caught by boundary:', error, errorInfo);
-    this.setState({ errorInfo });
-    
-    // Call the optional onError callback if provided
+  componentDidCatch(error: Error, errorInfo: { componentStack: string }) {
+    if (process.env.NODE_ENV === 'production') {
+      // Replace with your error logging service, e.g., Sentry
+      console.error('Logging error to service:', error, errorInfo);
+    }
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     }
