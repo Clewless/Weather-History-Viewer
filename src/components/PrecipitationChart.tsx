@@ -1,7 +1,7 @@
 import { h } from 'preact';
 
 import type { JSX } from 'preact/jsx-runtime';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { DailyWeatherData, HourlyWeatherData } from '../open-meteo.js';
 import { Location } from '../types.js';
@@ -18,6 +18,22 @@ interface PrecipitationChartProps {
 
 export const PrecipitationChart = ({ weatherData, temperatureUnit, location, startDate, isLoading = false }: PrecipitationChartProps): JSX.Element => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Detect dark mode changes
+  useEffect(() => {
+    const checkDarkMode = () => {
+      const dark = document.body.classList.contains('dark-mode');
+      setIsDarkMode(dark);
+      console.log('[DEBUG] PrecipitationChart dark mode:', dark);
+    };
+
+    checkDarkMode();
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    return () => observer.disconnect();
+  }, []);
 
   // Chart rendering constants
   const CHART_PADDING = 40;
@@ -71,14 +87,22 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
     const maxPrecipitation = Math.max(...precipitationData) || 1;
     const maxCloudCover = CLOUD_COVER_MAX; // Cloud cover is percentage
 
+    // Define colors based on dark mode
+    const bgColor = isDarkMode ? '#1f2937' : '#f8f9fa';
+    const gridColor = isDarkMode ? '#6b7280' : '#e0e0e0';
+    const precipColor = isDarkMode ? '#3b82f6' : '#4dabf7';
+    const cloudColor = isDarkMode ? '#d1d5db' : '#868e96';
+    const textColor = isDarkMode ? '#f3f4f6' : '#333';
+    const textColorLight = isDarkMode ? '#9ca3af' : '#666';
+
     // Draw chart background
-    ctx.fillStyle = '#f8f9fa';
+    ctx.fillStyle = bgColor;
     ctx.fillRect(padding, padding, chartWidth, chartHeight);
 
     // Draw grid lines
-    ctx.strokeStyle = '#e0e0e0';
+    ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
-    
+
     // Horizontal grid lines
     Array.from({ length: 6 }).forEach((_, i) => {
       const y = padding + (chartHeight / 5) * i;
@@ -99,18 +123,18 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
     }
 
     // Draw precipitation bars
-    ctx.fillStyle = '#4dabf7';
+    ctx.fillStyle = precipColor;
     precipitationData.forEach((precip: number, index: number) => {
       const x = padding + (chartWidth / hoursToShow) * index;
       const barWidth = chartWidth / hoursToShow * PRECIPITATION_BAR_WIDTH_RATIO;
       const barHeight = (precip / maxPrecipitation) * (chartHeight * PRECIPITATION_HEIGHT_RATIO); // Use 40% of chart height
       const y = padding + chartHeight - barHeight;
-      
+
       ctx.fillRect(x + barWidth * 0.2, y, barWidth, barHeight);
     });
 
     // Draw cloud cover line
-    ctx.strokeStyle = '#868e96';
+    ctx.strokeStyle = cloudColor;
     ctx.lineWidth = 2;
     ctx.beginPath();
 
@@ -128,21 +152,21 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
     ctx.stroke();
 
     // Draw cloud cover data points
-    ctx.fillStyle = '#868e96';
+    ctx.fillStyle = cloudColor;
     cloudCoverData.forEach((cover: number, index: number) => {
       const x = padding + (chartWidth / hoursToShow) * index;
       const y = padding + chartHeight * CLOUD_COVER_VERTICAL_POSITION - (cover / maxCloudCover) * (chartHeight * CLOUD_COVER_HEIGHT_RATIO);
-      
+
       ctx.beginPath();
       ctx.arc(x, y, 3, 0, 2 * Math.PI);
       ctx.fill();
     });
 
     // Draw Y-axis labels (left side - precipitation)
-    ctx.fillStyle = '#4dabf7';
+    ctx.fillStyle = precipColor;
     ctx.font = `${FONT_SIZE_SMALL}px sans-serif`;
     ctx.textAlign = 'right';
-    
+
     Array.from({ length: 6 }).forEach((_, i) => {
       const precip = (maxPrecipitation / 5) * (5 - i);
       const y = padding + (chartHeight / 5) * i;
@@ -150,9 +174,9 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
     });
 
     // Draw Y-axis labels (right side - cloud cover)
-    ctx.fillStyle = '#868e96';
+    ctx.fillStyle = cloudColor;
     ctx.textAlign = 'left';
-    
+
     Array.from({ length: 6 }).forEach((_, i) => {
       const cover = (maxCloudCover / 5) * (5 - i);
       const y = padding + (chartHeight / 5) * i;
@@ -160,9 +184,9 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
     });
 
     // Draw X-axis labels (hours)
-    ctx.fillStyle = '#666';
+    ctx.fillStyle = textColorLight;
     ctx.textAlign = 'center';
-    
+
     for (let i = 0; i < hoursToShow; i += 3) {
       const x = padding + (chartWidth / hoursToShow) * i;
       const hourLabel = formatLocalTime(localData.times[i], location.timezone);
@@ -170,25 +194,25 @@ export const PrecipitationChart = ({ weatherData, temperatureUnit, location, sta
     }
 
     // Draw legend
-    ctx.fillStyle = '#4dabf7';
+    ctx.fillStyle = precipColor;
     ctx.fillRect(rect.width / 2 - LEGEND_PRECIPITATION_X_OFFSET, LEGEND_Y_POSITION, LEGEND_SQUARE_SIZE, LEGEND_SQUARE_SIZE);
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = textColor;
     ctx.font = `${FONT_SIZE_SMALL}px sans-serif`;
     ctx.textAlign = 'left';
     ctx.fillText('Precipitation', rect.width / 2 - LEGEND_PRECIPITATION_TEXT_X_OFFSET, LEGEND_TEXT_Y_POSITION);
 
-    ctx.fillStyle = '#868e96';
+    ctx.fillStyle = cloudColor;
     ctx.fillRect(rect.width / 2 + LEGEND_CLOUD_X_OFFSET, LEGEND_Y_POSITION, LEGEND_SQUARE_SIZE, LEGEND_SQUARE_SIZE);
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = textColor;
     ctx.fillText('Cloud Cover', rect.width / 2 + LEGEND_CLOUD_TEXT_X_OFFSET, LEGEND_TEXT_Y_POSITION);
 
     // Draw chart title
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = textColor;
     ctx.font = `${FONT_SIZE_MEDIUM}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText('Precipitation & Cloud Cover', rect.width / 2, 20);
 
-  }, [weatherData, temperatureUnit, location, startDate]);
+  }, [weatherData, temperatureUnit, location, startDate, isDarkMode]);
 
   // Data guard for empty localData
   const effectiveStartDate = startDate || getCurrentDateString();

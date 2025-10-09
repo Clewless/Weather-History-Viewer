@@ -6,7 +6,7 @@
 import { DailyWeatherData, HourlyWeatherData } from './open-meteo';
 import { Location, WeatherDataResponse } from './types';
 import { getEnvVar } from './utils/env';
-import { NetworkError, APIError, ValidationError, wrapError } from './errors';
+import { NetworkError, APIError, ValidationError, wrapError } from './utils/simpleErrors';
 import { validateLocationData, validateWeatherData, validateDateRange } from './utils/responseValidator';
 import { addApiTask } from './utils/queue';
 

@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import { config } from 'dotenv';
 import rateLimit from 'express-rate-limit';
 
-import { ValidationError, createErrorResponse, NetworkError, wrapError } from './errors';
+import { ValidationError, createErrorResponse, NetworkError, APIError, wrapError } from './utils/simpleErrors';
 import { getEnvVar, validateEnvVars } from './utils/env';
 import { createCorsMiddleware } from './utils/cors';
 import {
@@ -15,7 +15,7 @@ import {
   validateTimezoneWithErrors
 } from './utils/validation';
 import { validateWithZod } from './utils/zodValidation';
-import { NamespaceCacheManager } from './utils/unifiedCacheManager';
+import { SimpleCacheManager } from './utils/simpleCacheManager';
 import {
   searchLocations,
   getHistoricalWeather,
@@ -32,8 +32,6 @@ import {
   WeatherAPIRequestSchema,
   ReverseGeocodeAPIParamsSchema
 } from './schemas/apiSchema';
-// Import memory monitoring
-import { MemoryLeakTester } from './memory-leak-tester';
 
 /**
  * Simple HTML escaping function to prevent XSS
@@ -114,22 +112,14 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // Define the type for the cache data
 type CacheData = GeoLocation[] | { daily: DailyWeatherData; hourly: HourlyWeatherData } | GeoLocation;
 
-// Create a unified cache manager
-const cache = new NamespaceCacheManager<CacheData>(CACHE_TTL.SERVER_DEFAULT, 1000, 5 * 60 * 1000);
+// Create a simple cache manager (replaces overly complex unified cache)
+const cache = new SimpleCacheManager<CacheData>(CACHE_TTL.SERVER_DEFAULT);
 
 // Initialize memory monitoring
 console.log('🔍 Memory leak detection activated');
 
-// Create memory leak tester for API monitoring
-const apiMemoryTester = new MemoryLeakTester({
-  iterations: 1000,
-  leakThreshold: 50, // 50MB threshold for overall memory monitoring
-  snapshotInterval: 100,
-  verbose: nodeEnv === 'development',
-  enableGc: true
-});
-
-console.log('🧪 Memory testing initialized with leak threshold: 50MB');
+// Removed memory leak tester - was part of excessive memory monitoring infrastructure
+console.log('⚠️ Memory leak detection has been simplified');
 
 // Create CORS middleware with environment-specific configuration
 const corsMiddleware = createCorsMiddleware(nodeEnv, corsOrigins, frontendPort);
@@ -218,7 +208,7 @@ app.get('/api/search', async (req, res) => {
     const { q: query } = validatedParams;
 
     // Check cache first
-    const cachedResult = cache.get('search', query);
+    const cachedResult = cache.get(`search:${query}`);
     if (cachedResult) {
       return res.json(cachedResult);
     }
@@ -229,7 +219,7 @@ app.get('/api/search', async (req, res) => {
        const locations = await searchLocations(sanitizedQuery);
     
     // Cache the result
-    cache.set('search', query, locations);
+    cache.set(`search:${query}`, locations);
     
     res.json(locations);
   } catch (error: unknown) {
@@ -282,8 +272,8 @@ app.get('/api/weather', async (req, res) => {
     validateDateRangeWithErrors(startTrim, endTrim);
 
     // Check cache first
-    const cacheKey = `${lat}:${lon}:${startTrim}:${endTrim}:${timezone}`;
-    const cachedResult = cache.get('weather', cacheKey);
+    const cacheKey = `weather:${lat}:${lon}:${startTrim}:${endTrim}:${timezone}`;
+    const cachedResult = cache.get(cacheKey);
     if (cachedResult) {
       return res.json(cachedResult);
     }
@@ -295,7 +285,7 @@ app.get('/api/weather', async (req, res) => {
     );
     
     // Cache the result
-    cache.set('weather', cacheKey, weather);
+    cache.set(cacheKey, weather);
     
     res.json(weather);
   } catch (error: unknown) {
@@ -325,8 +315,8 @@ app.get('/api/reverse-geocode', async (req, res) => {
     validateCoordinatesWithErrors(lat, lon);
 
     // Check cache first
-    const cacheKey = `${lat}:${lon}`;
-    const cachedResult = cache.get('reverse', cacheKey);
+    const cacheKey = `reverse:${lat}:${lon}`;
+    const cachedResult = cache.get(cacheKey);
     if (cachedResult) {
       console.log(`[DEBUG] Reverse geocode cache hit for ${cacheKey}`);
       return res.json(cachedResult);
@@ -338,7 +328,7 @@ app.get('/api/reverse-geocode', async (req, res) => {
     console.log(`[DEBUG] Reverse geocode success: ${location.name}, ${location.country}`);
 
     // Cache the result
-    cache.set('reverse', cacheKey, location);
+    cache.set(cacheKey, location);
 
     res.json(location);
   } catch (error: unknown) {
@@ -356,13 +346,19 @@ app.get('/api/reverse-geocode', async (req, res) => {
 // Add endpoint to get cache statistics (only in development environment)
 if (nodeEnv === 'development') {
   app.get('/api/cache-stats', (req, res) => {
-    res.json(cache.getStats());
+    res.json({ size: cache.size() });
   });
   
   // Add endpoint to clear cache (useful for development)
   app.get('/api/cache-clear', (req, res) => {
     cache.clear();
     res.json({ message: 'All caches cleared' });
+  });
+
+  // Add endpoint to shut down the server (useful for development)
+  app.post('/api/shutdown', (req, res) => {
+    res.json({ message: 'Shutting down server...' });
+    gracefulShutdown('API');
   });
 } else {
   // In production, return a minimal response
@@ -444,11 +440,10 @@ const gracefulShutdown = (signal: string) => {
 
     // Step 2: Clean up cache and timers
     try {
-      cache.stopCleanup();
-      console.log('Cache cleanup stopped');
+      // Simple cache manager doesn't require cleanup, but we can clear it if needed
+      console.log('Cache cleaned up');
 
-      // Stop memory monitoring
-      apiMemoryTester.reset();
+      // Stop memory monitoring - apiMemoryTester was removed as part of simplification
       console.log('Memory leak detection stopped');
 
       // Force final garbage collection

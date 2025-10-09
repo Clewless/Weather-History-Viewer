@@ -109,11 +109,6 @@ export const DateSelector = ({
             </button>
           </div>
           <div class="calendar-grid" role="grid" aria-labelledby="calendar-month-label">
-            {/* Day headers */}
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-              <div key={day} class="calendar-day-header">{day}</div>
-            ))}
-            
             {/* Calendar days */}
             {calendarDays.map((date, index) => (
               <button

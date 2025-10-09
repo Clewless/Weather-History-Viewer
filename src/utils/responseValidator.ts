@@ -3,7 +3,7 @@
  */
 
 import { APIResponse, ErrorResponse, HTTPResponse, ValidationResult } from '../types';
-import { ValidationError } from '../errors';
+import { ValidationError } from './simpleErrors';
 
 /**
  * Validation error interface for response validation

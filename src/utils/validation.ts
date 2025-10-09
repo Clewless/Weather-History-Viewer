@@ -19,7 +19,7 @@ const escapeHtml = (str: string): string => {
     .replace(/'/g, '&#x27;');
 };
 
-import { ValidationError } from '../errors';
+import { ValidationError } from './simpleErrors';
 
 import { getEnvVar } from './env';
 import { parseDateString, isValidDateString, isValidDateRange } from './dateUtils';

@@ -89,7 +89,7 @@ A web application for exploring historical weather data using the Open-Meteo API
    npm run start
    ```
 
-   The application will open in your browser at `http://localhost:8080`.
+   The application will open in your browser at `http://localhost:3000`.
 
 5. **Build for production**
    ```
@@ -109,6 +109,8 @@ A web application for exploring historical weather data using the Open-Meteo API
 
 ## API Endpoints (Backend)
 
+- `GET /api/health` - Health check
+- `GET /api/debug-config` - View API configuration
 - `GET /api/search?q={query}` - Search locations
 - `GET /api/weather?lat={lat}&lon={lon}&start={start}&end={end}&timezone={tz}` - Get historical weather
 - `GET /api/reverse-geocode?lat={lat}&lon={lon}` - Reverse geocode coordinates to location

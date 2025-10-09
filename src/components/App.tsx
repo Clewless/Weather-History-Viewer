@@ -6,10 +6,10 @@ import { useState, useEffect, useCallback, useRef } from 'preact/hooks';
 import { bffGetWeather, bffReverseGeocode } from '../api';
 import { Location } from '../types';
 import { DailyWeatherData, HourlyWeatherData } from '../open-meteo';
-import { NamespaceCacheManager } from '../utils/unifiedCacheManager';
+import { SimpleCacheManager } from '../utils/simpleCacheManager';
 import { getCurrentDateString, parseDateString } from '../utils/dateUtils';
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, CACHE_TTL, APP_VERSION } from '../constants';
-import { ValidationError, APIError, NetworkError } from '../errors';
+import { ValidationError, APIError, NetworkError } from '../utils/simpleErrors';
 
 import { MapComponent } from './MapComponent';
 import { DateSelector } from './DateSelector';
@@ -39,9 +39,9 @@ const App = () => {
   const { error, handleError, clearError } = useErrorHandler();
 
   // Use refs to track cache managers for proper cleanup
-  const searchCacheRef = useRef<NamespaceCacheManager<Location[]>>(new NamespaceCacheManager<Location[]>(CACHE_TTL.SEARCH, 1_000, 60 * 1_000));
-  const weatherCacheRef = useRef<NamespaceCacheManager<WeatherData>>(new NamespaceCacheManager<WeatherData>(CACHE_TTL.WEATHER, 1_000, 60 * 1_000));
-  const reverseGeocodeCacheRef = useRef<NamespaceCacheManager<Location>>(new NamespaceCacheManager<Location>(CACHE_TTL.REVERSE_GEOCODE, 1_000, 60 * 1_000));
+  const searchCacheRef = useRef<SimpleCacheManager<Location[]>>(new SimpleCacheManager<Location[]>(CACHE_TTL.SEARCH));
+  const weatherCacheRef = useRef<SimpleCacheManager<WeatherData>>(new SimpleCacheManager<WeatherData>(CACHE_TTL.WEATHER));
+  const reverseGeocodeCacheRef = useRef<SimpleCacheManager<Location>>(new SimpleCacheManager<Location>(CACHE_TTL.REVERSE_GEOCODE));
 
   // Create cache managers with different TTLs for different data types
   const _searchCache = searchCacheRef.current;
@@ -72,20 +72,20 @@ const App = () => {
 
 
   const cachedGetWeather = useCallback(async (location: Location, start: string, end: string): Promise<WeatherData> => {
-    const key = getCacheKey('getWeather', location.latitude, location.longitude, start, end);
-    const cached = weatherCache.get('weather', key);
+    const key = `weather:${getCacheKey('getWeather', location.latitude, location.longitude, start, end)}`;
+    const cached = weatherCache.get(key);
     if (cached) return cached;
     const data = await bffGetWeather(location, start, end);
-    weatherCache.set('weather', key, data);
+    weatherCache.set(key, data);
     return data;
   }, [weatherCache, getCacheKey]);
 
   const cachedReverseGeocode = useCallback(async (lat: number, lng: number): Promise<Location> => {
-    const key = getCacheKey('reverseGeocode', lat, lng);
-    const cached = reverseGeocodeCache.get('reverse-geocode', key);
+    const key = `reverse-geocode:${getCacheKey('reverseGeocode', lat, lng)}`;
+    const cached = reverseGeocodeCache.get(key);
     if (cached) return cached;
     const data = await bffReverseGeocode(lat, lng);
-    reverseGeocodeCache.set('reverse-geocode', key, data);
+    reverseGeocodeCache.set(key, data);
     return data;
   }, [reverseGeocodeCache, getCacheKey]);
 
@@ -292,19 +292,8 @@ const App = () => {
   // Cleanup cache managers on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
-      const cleanupCache = (cacheName: string, cache: { stopCleanup?: () => void } | null) => {
-        try {
-          if (cache && typeof cache.stopCleanup === 'function') {
-            cache.stopCleanup();
-          }
-        } catch (error: unknown) {
-          console.warn(`Error stopping ${cacheName} cache cleanup:`, error);
-        }
-      };
-
-      cleanupCache('search', searchCacheRef.current);
-      cleanupCache('weather', weatherCacheRef.current);
-      cleanupCache('reverse geocode', reverseGeocodeCacheRef.current);
+      // Simple cache manager doesn't require cleanup
+      console.log('Cache managers cleaned up');
     };
   }, []); // Empty dependency array since we want this to run only on unmount
 
@@ -350,114 +339,117 @@ const App = () => {
 
   return (
     <ErrorBoundary onError={(error: Error) => handleError(error.message, 'error')}>
-      <div className="app-container">
-        <button
-          onClick={toggleDarkMode}
-          className="theme-toggle"
-          aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-          title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-        >
-          {isDarkMode ? (
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-            </svg>
-          )}
-        </button>
-        
-        <header className="header">
-          <h1>Weather History Viewer <span className="version-text">v{APP_VERSION.CURRENT}</span></h1>
-          <p className="header-subtitle">Vibe Coded by Clewless (sorry)</p>
-        </header>
-
-        {error && !isLoading && (
-          <div className={`error-message ${error.type}`} role="alert">
-            <div>{error.message}</div>
-          </div>
-        )}
-
-        <div className="left-panel">
-          <div className="controls-section">
-            <div className="geolocation-section">
-              <h3>Location</h3>
-              <button onClick={handleGeolocationClick} disabled={geolocationRequested} className="geolocation-btn" aria-label="Use my current location" aria-describedby="geolocation-desc">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                  <path d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10zm0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
-                </svg>
-                {geolocationRequested ? 'Using your location...' : 'Use My Location'}
+      <>
+        <div className="app-container">
+          <header className="header">
+            <h1>Weather History Viewer <span className="version-text">v{APP_VERSION.CURRENT}</span></h1>
+            <p className="header-subtitle">Vibe Coded by Clewless (sorry)</p>
+            <div className="theme-toggle-container">
+              <button
+                onClick={toggleDarkMode}
+                className="theme-toggle"
+                aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+                title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {isDarkMode ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                )}
               </button>
-              <p id="geolocation-desc" className="geolocation-desc">
-                Click to use your current location (requires permission for privacy).
-              </p>
             </div>
-            <LocationSearch
-              onLocationSelect={handleLocationSelect}
-              currentLocation={currentLocation}
-            />
-            <DateSelector
-             selectedDate={selectedDate}
-             onDateChange={handleDateChangeDebounced}
-             loading={isLoading}
-           />
-          </div>
-          <div className="map-section">
-            <h3>Map</h3>
-            <ErrorBoundary>
-              <MapComponent
-                latitude={currentLocation?.latitude || DEFAULT_LATITUDE}
-                longitude={currentLocation?.longitude || DEFAULT_LONGITUDE}
-                onLocationSelect={handleMapLocationSelect}
-                aria-label="Interactive map for location selection"
-              />
-            </ErrorBoundary>
-          </div>
-        </div>
+          </header>
 
-        <div className="weather-section">
-          {!error?.message && (
-            <>
-              <ErrorBoundary>
-                <WeatherDisplay
-                  weatherData={weatherData}
-                  location={currentLocation}
-                  temperatureUnit={temperatureUnit}
-                  onTemperatureUnitChange={handleTemperatureUnitChange}
-                  isLoading={isLoading}
-                  aria-label="Weather display for selected location and date range"
-                />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <TemperatureChart
-                  weatherData={weatherData}
-                  temperatureUnit={temperatureUnit}
-                  location={currentLocation}
-                  startDate={selectedDate}
-                  isLoading={isLoading}
-                  aria-label="Daily temperature chart"
-                />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <PrecipitationChart
-                  weatherData={weatherData}
-                  temperatureUnit={temperatureUnit}
-                  location={currentLocation}
-                  startDate={selectedDate}
-                  isLoading={isLoading}
-                  aria-label="Daily precipitation chart"
-                />
-              </ErrorBoundary>
-            </>
-          )}
-          {error?.message && (
-            <div className="error-message error" role="alert">
+          {error && !isLoading && (
+            <div className={`error-message ${error.type}`} role="alert">
               <div>{error.message}</div>
             </div>
           )}
+
+          <div className="left-panel">
+            <div className="controls-section">
+              <div className="geolocation-section">
+                <h3>Location</h3>
+                <button onClick={handleGeolocationClick} disabled={geolocationRequested} className="geolocation-btn" aria-label="Use my current location" aria-describedby="geolocation-desc">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10zm0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+                  </svg>
+                  {geolocationRequested ? 'Using your location...' : 'Use My Location'}
+                </button>
+                <p id="geolocation-desc" className="geolocation-desc">
+                  Click to use your current location (requires permission for privacy).
+                </p>
+              </div>
+              <LocationSearch
+                onLocationSelect={handleLocationSelect}
+                currentLocation={currentLocation}
+              />
+              <DateSelector
+               selectedDate={selectedDate}
+               onDateChange={handleDateChangeDebounced}
+               loading={isLoading}
+             />
+            </div>
+            <div className="map-section">
+              <h3>Map</h3>
+              <ErrorBoundary>
+                <MapComponent
+                  latitude={currentLocation?.latitude || DEFAULT_LATITUDE}
+                  longitude={currentLocation?.longitude || DEFAULT_LONGITUDE}
+                  onLocationSelect={handleMapLocationSelect}
+                  aria-label="Interactive map for location selection"
+                />
+              </ErrorBoundary>
+            </div>
+          </div>
+
+          <div className="weather-section">
+            {!error?.message && (
+              <>
+                <ErrorBoundary>
+                  <WeatherDisplay
+                    weatherData={weatherData}
+                    location={currentLocation}
+                    temperatureUnit={temperatureUnit}
+                    onTemperatureUnitChange={handleTemperatureUnitChange}
+                    isLoading={isLoading}
+                    aria-label="Weather display for selected location and date range"
+                  />
+                </ErrorBoundary>
+                <ErrorBoundary>
+                  <TemperatureChart
+                    weatherData={weatherData}
+                    temperatureUnit={temperatureUnit}
+                    location={currentLocation}
+                    startDate={selectedDate}
+                    isLoading={isLoading}
+                    aria-label="Daily temperature chart"
+                  />
+                </ErrorBoundary>
+                <ErrorBoundary>
+                  <PrecipitationChart
+                    weatherData={weatherData}
+                    temperatureUnit={temperatureUnit}
+                    location={currentLocation}
+                    startDate={selectedDate}
+                    isLoading={isLoading}
+                    aria-label="Daily precipitation chart"
+                  />
+                </ErrorBoundary>
+              </>
+            )}
+            {error?.message && (
+              <div className="error-message error" role="alert">
+                <div>{error.message}</div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </>
     </ErrorBoundary>
   );
 };

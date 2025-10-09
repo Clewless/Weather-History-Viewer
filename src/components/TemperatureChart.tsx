@@ -1,7 +1,7 @@
 import { h } from 'preact';
 
 import type { JSX } from 'preact/jsx-runtime';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { DailyWeatherData, HourlyWeatherData } from '../open-meteo.js';
 import { Location } from '../types.js';
@@ -18,6 +18,22 @@ interface TemperatureChartProps {
 
 export const TemperatureChart = ({ weatherData, temperatureUnit, location, startDate, isLoading = false }: TemperatureChartProps): JSX.Element => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Detect dark mode changes
+  useEffect(() => {
+    const checkDarkMode = () => {
+      const dark = document.body.classList.contains('dark-mode');
+      setIsDarkMode(dark);
+      console.log('[DEBUG] TemperatureChart dark mode:', dark);
+    };
+
+    checkDarkMode();
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    return () => observer.disconnect();
+  }, []);
 
   // Chart rendering constants
   const CHART_PADDING = 40;
@@ -70,14 +86,21 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
     const minTemp = Math.min(...temperatures);
     const tempRange = maxTemp - minTemp || 1; // Avoid division by zero
 
+    // Define colors based on dark mode
+    const bgColor = isDarkMode ? '#1f2937' : '#f8f9fa';
+    const gridColor = isDarkMode ? '#6b7280' : '#e0e0e0';
+    const tempLineColor = isDarkMode ? '#ef4444' : '#ff6b6b';
+    const textColor = isDarkMode ? '#f3f4f6' : '#333';
+    const textColorLight = isDarkMode ? '#9ca3af' : '#666';
+
     // Draw chart background
-    ctx.fillStyle = '#f8f9fa';
+    ctx.fillStyle = bgColor;
     ctx.fillRect(padding, padding, chartWidth, chartHeight);
 
     // Draw grid lines
-    ctx.strokeStyle = '#e0e0e0';
+    ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
-    
+
     // Horizontal grid lines
     Array.from({ length: 6 }).forEach((_, i) => {
       const y = padding + (chartHeight / 5) * i;
@@ -98,7 +121,7 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
     }
 
     // Draw temperature line
-    ctx.strokeStyle = '#ff6b6b';
+    ctx.strokeStyle = tempLineColor;
     ctx.lineWidth = 2;
     ctx.beginPath();
 
@@ -116,21 +139,21 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
     ctx.stroke();
 
     // Draw data points
-    ctx.fillStyle = '#ff6b6b';
+    ctx.fillStyle = tempLineColor;
     temperatures.forEach((temp: number, index: number) => {
       const x = padding + (chartWidth / hoursToShow) * index;
       const y = padding + chartHeight - ((temp - minTemp) / tempRange) * chartHeight;
-      
+
       ctx.beginPath();
       ctx.arc(x, y, 3, 0, 2 * Math.PI);
       ctx.fill();
     });
 
     // Draw Y-axis labels
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = textColor;
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'right';
-    
+
     Array.from({ length: 6 }).forEach((_, i) => {
       const temp = minTemp + (tempRange / 5) * (5 - i);
       const y = padding + (chartHeight / 5) * i;
@@ -138,9 +161,9 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
     });
 
     // Draw X-axis labels (hours)
-    ctx.fillStyle = '#666';
+    ctx.fillStyle = textColorLight;
     ctx.textAlign = 'center';
-    
+
     for (let i = 0; i < hoursToShow; i += 3) {
       const x = padding + (chartWidth / hoursToShow) * i;
       const hourLabel = formatLocalTime(localData.times[i], location.timezone);
@@ -148,12 +171,12 @@ export const TemperatureChart = ({ weatherData, temperatureUnit, location, start
     }
 
     // Draw chart title
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = textColor;
     ctx.font = '14px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('Temperature', rect.width / 2, CHART_TITLE_Y_POSITION);
 
-  }, [weatherData, temperatureUnit, location, startDate]);
+  }, [weatherData, temperatureUnit, location, startDate, isDarkMode]);
 
   // Data guard for empty localData
   const effectiveStartDate = startDate || getCurrentDateString();

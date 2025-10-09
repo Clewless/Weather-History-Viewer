@@ -2,7 +2,7 @@ import axios, { AxiosError } from 'axios';
 import axiosRetry, { exponentialDelay, isRetryableError } from 'axios-retry';
 import tzLookup from 'tz-lookup';
 
-import { APIError, wrapError } from './errors';
+import { APIError, wrapError } from './utils/simpleErrors';
 import { validateDateRangeWithErrors, validateCoordinatesWithErrors, validateTimezoneWithErrors } from './utils/validation';
 import { validateWithZod, safeValidateWithZod } from './utils/zodValidation';
 import { getEnvVar } from './utils/env';

@@ -53,24 +53,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <h2>Something went wrong</h2>
           <p>We're sorry, but an error occurred in the application.</p>
           {this.state.error && (
-            <details 
-              style={{ 
-                whiteSpace: 'pre-wrap',
-                textAlign: 'left',
-                maxWidth: '800px',
-                margin: '0 auto',
-                background: '#f8fafc',
-                padding: '1rem',
-                borderRadius: '0.5rem',
-                color: '#64748b',
-                fontFamily: 'monospace',
-                fontSize: '0.875rem'
-              }}
-            >
+            <details>
               <summary>Error details</summary>
               {this.state.error.toString()}
               {this.state.errorInfo?.componentStack && (
-                <div style={{ marginTop: '1rem' }}>
+                <div>
                   Component Stack:
                   {this.state.errorInfo.componentStack}
                 </div>
@@ -80,7 +67,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <button class="retry-button" onClick={this.resetError}>
             Try again
           </button>
-          <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#64748b' }}>
+          <p>
             If the problem persists, please refresh the page or contact support.
           </p>
         </div>

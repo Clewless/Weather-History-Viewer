@@ -94,6 +94,18 @@ export const APIDebugTool = ({ apiBaseUrl = 'http://localhost:3001/api' }: APIDe
     setTestResults([]);
   };
 
+  const shutdownServer = async () => {
+    if (window.confirm('Are you sure you want to shut down the server? This will close the application.')) {
+      try {
+        addLog('Sending shutdown request to server...');
+        await fetch(`${apiBaseUrl}/shutdown`, { method: 'POST' });
+        addLog('Shutdown request sent. The server is closing. You can now close this window.');
+      } catch (error) {
+        addLog(`Shutdown request failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  };
+
   // Only show in development
   if (process.env.NODE_ENV !== 'development') {
     console.warn('APIDebugTool is not available in production.');
@@ -141,6 +153,7 @@ export const APIDebugTool = ({ apiBaseUrl = 'http://localhost:3001/api' }: APIDe
           onClick={clearLogs}
           style={{
             padding: '5px 10px',
+            marginRight: '5px',
             background: '#6c757d',
             color: 'white',
             border: 'none',
@@ -148,6 +161,18 @@ export const APIDebugTool = ({ apiBaseUrl = 'http://localhost:3001/api' }: APIDe
           }}
         >
           Clear
+        </button>
+        <button
+          onClick={shutdownServer}
+          style={{
+            padding: '5px 10px',
+            background: '#dc3545',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px'
+          }}
+        >
+          Shutdown Server
         </button>
       </div>
 

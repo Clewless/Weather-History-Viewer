@@ -2,7 +2,7 @@
  * Utility functions for safe parameter handling in Express routes
  */
 
-import { ValidationError } from '../errors';
+import { ValidationError } from './simpleErrors';
 
 /**
  * Safely extracts a string parameter from request query
@@ -142,7 +142,7 @@ export function getParams(
       // Re-throw with additional context
       if (error instanceof ValidationError) {
         throw new ValidationError(
-          `Parameter validation failed for ${paramName}: ${error.message}`, 
+          `Parameter validation failed for ${paramName}: ${error.message}`,
           paramName, 
           error.value
         );
